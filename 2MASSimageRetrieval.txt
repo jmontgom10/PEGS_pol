@@ -1,0 +1,40 @@
+DIRECTIONS FOR WRITING 2MASS IMAGE RETRIEVAL WIDGET
+
+
+
+
+----------------------
+
+read this here
+
+http://irsa.ipac.caltech.edu/applications/Cutouts/docs/CutoutsProgramInterface.html
+
+
+
+----------------------
+
+an example WGET command for NGC891
+
+wget -r -nd -A fits -l 2 http://irsa.ipac.caltech.edu/workspace/TMP_gpiv6l_19114/Cutouts/NGC891.v0001/results
+
+----------------------
+
+Wget Instructions:
+
+Wget is a GNU Unix tool which can be used to retrieve all the cutouts from the IRSA server to your local disk. If you do not have 'Wget' installed on your machine, follow these download instructions. If you have 'Wget' (or have just installed it) do the following to download the cutouts:
+
+Create a local directory to contain the downloaded images
+cd into that location
+Use the wget command as printed on the results page to download the FITS cutouts into the current location
+To retrieve JPEG files instead of FITS files, substitute "-A fits" with "-A jpg"
+To retrieve JPEG files in addition to FITS files, add "-A jpg" to the command
+Below is a sample Wget command (using GNU Wget v1.5.3), which may display on two lines:
+
+wget -r -nd -A fits -1 2 http://irsa.ipac.caltech.edu/work/TMP_AAAuiaaGd/Cutouts/0_0_ga.v0034/results
+
+-r: recursive mode (since results is a directory)
+-nd: "no directories" keeps Wget from creating a directory named "irsa.ipac.caltech.edu/work/TMP_AAAuiaaGd/Cutouts/0_0_ga.v0034" (you may choose to leave this out)
+-A fits: retrieve only files that end in "fits" - without this option, you will retrieve unnecessary files that are located in the directory on the server.
+-l 2: (that's a lowercase 'L') - retrieve files within two directory levels, since that is how IRSA structures the results
+http...: is the location of the cutouts; this location is unique for every run of the Cutouts service
+For more options and information on using wget, such as specifying an output directory location for the FITS cutouts, type 'wget --help' on the command line.
