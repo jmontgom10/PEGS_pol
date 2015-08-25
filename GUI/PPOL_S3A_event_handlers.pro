@@ -628,14 +628,16 @@ PRO S3A_ASTROMETRY_REPAIR, event
       IF decisionEvent.ID EQ acceptPhoto_wid THEN BEGIN
         filename = groupStruc.analysis_dir + 'S3_Astrometry' $          ;Set the path for the file to be saved
           + PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j])
-        WRITEFITS, filename, fixedImg, header                           ;Write the file to disk
+;        WRITEFITS, filename, fixedImg, header                           ;Write the file to disk
+        WRITEHEAD, filename, header                                     ;Write the file to disk
         groupStruc.imageFlags[i,j] = 1                   ;Update image usage flag
         groupStruc.astroFlags[i,j] = 1                   ;Update the astrometry flag
 ;        UPDATE_GROUP_SUMMARY, event, groupStruc                        ;Write image usage flags to disk
       ENDIF ELSE IF decisionEvent.ID EQ acceptAstro_wid THEN BEGIN
         filename = groupStruc.analysis_dir + 'S3_Astrometry' $          ;Set the path for the file to be saved
           + PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j])
-        WRITEFITS, filename, fixedImg, header                           ;Write the file to disk
+;        WRITEFITS, filename, fixedImg, header                           ;Write the file to disk
+        WRITEHEAD, filename, header                                     ;Write the file to disk
         groupStruc.imageFlags[i,j] = 1                   ;Update image usage flag
         groupStruc.astroFlags[i,j] = 2                   ;Update the astrometry flag
       ENDIF ELSE IF decisionEvent.ID EQ reject_wid THEN BEGIN
@@ -645,7 +647,8 @@ PRO S3A_ASTROMETRY_REPAIR, event
       ENDIF ELSE IF decisionEvent.ID EQ save_wid THEN BEGIN
         filename = groupStruc.analysis_dir + 'S3_Astrometry' $          ;Set the path for the file to be saved
           + PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j])
-        WRITEFITS, filename, fixedImg, header                           ;Write the file to disk
+;        WRITEFITS, filename, fixedImg, header                           ;Write the file to disk
+        WRITEHEAD, filename, header                                     ;Write the file to disk
         groupStruc.imageFlags[i,j] = 1                   ;Update image usage flag
         groupStruc.astroFlags[i,j] = 1                   ;Update the astrometry flag
         UPDATE_GROUP_SUMMARY, event, groupStruc, /SAVE                  ;Write image usage flags to disk

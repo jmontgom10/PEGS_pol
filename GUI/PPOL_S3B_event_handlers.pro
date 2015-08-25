@@ -66,7 +66,7 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
   ;
   hwp = fltarr(nfiles)
   for i = 0, nfiles-1 do begin
-    header = headfits(astrometryFiles[i])
+    header = READHEAD(astrometryFiles[i])
     hwp[i] = SXPAR(header, "MB_HWP")
   endfor
   ;
@@ -97,7 +97,8 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
       for i = 0, n_hwp_files-1 do begin
 ;        a      = readfits(hwp_imageFiles[i])
 ;        header = headfits(hwp_astroFiles[i])
-        a      = readfits(hwp_astroFiles[i], header)
+        a      = readfits(hwp_imageFiles[i]);, header)
+        header = readhead(hwp_astroFiles[i])
         ;
         if(i eq 0) then begin
           image_mean = fltarr(n_hwp_files)
@@ -133,7 +134,10 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         FOR iShift = 0, 7 DO BEGIN
           neighborCount += SHIFT(bad_pix, xShift[iShift], yShift[iShift])
         ENDFOR
-        ;          FOR iNeighbor = 1, 8 DO WRITEFITS, STRTRIM(iNeighbor, 2)+'neighbors.fits', (neighborCount LT iNeighbor)
+
+        ;This line saves maps of the bad pixels clusters from clusters of 1 to 8
+        ;FOR iNeighbor = 1, 8 DO WRITEFITS, STRTRIM(iNeighbor, 2)+'neighbors.fits', (neighborCount LT iNeighbor)
+
         bad_pix = bad_pix AND (neighborCount LT 4)
         bad_ind  = WHERE(bad_pix, numBad)
         IF numBad GT 0 THEN a[bad_ind] = -1E6
@@ -171,7 +175,9 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
 ;        TVIM, this_mask
         ;
         sample_image += (1.0 - this_mask)
-        masked_image  = a[*,*] * (1.0 - this_mask)
+;        masked_image  = a[*,*] * (1.0 - this_mask)
+        masked_image  = a
+        masked_image[where(this_mask)] = !VALUES.F_NAN
         ;
         ;quick debugging examination
         ;        WINDOW, 0, XS=0.5*nx, YS=0.5*ny
@@ -181,10 +187,11 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         ;***************************
         
         subsampled_image = masked_image[50:nx-50:10,50:ny-50:10]
-        ind = WHERE(subsampled_image ne 0.0)
+        ind = WHERE((subsampled_image ne 0.0) and finite(subsampled_image))
         subsampled_image = subsampled_image[ind]
         zz = median_filtered_mean(subsampled_image)
-        ;
+        
+        ;Normalize the masked image by the mean of the image.
         masked_image /= zz[0]
         big_mask[*,*,i] = masked_image[*,*]
         big_image[*,*,i] = a[*,*]
@@ -193,33 +200,42 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
       ;
       ; for each pixel, compute mfm and put into output image
       ;
-      output = fltarr(nx,ny)
+;      output = fltarr(nx,ny)
       ;
       printString = STRING((ihwp+1),n_hwp, FORMAT='("Generating supersky image for HWP #",I2," of ",I2)')
       PRINT_TEXT2, event, printString
-      
-      for ix = 0, nx-1 do begin
-        for iy = 0, ny-1 do begin
-          vec = reform(big_mask[ix,iy,*])
-          ;
-          ind = where(vec ne 0.0,nz)
-          if(nz eq 0) then begin
-            IF sample_image[ix,iy] GT 0 THEN sample_image[ix,iy] = 0    ;Force this value to be considered unsampled
-;            zz = [0.,0.]                                              ;The mean value should be 1 in the case of zero sky samples
-            zz = REPLICATE(!VALUES.F_NAN, 2)                          ;The mean value is unknown (filled in later)
-          endif else begin
-            vec = vec[ind]
-            zz = median_filtered_mean(vec)
-          endelse
-          ;
-          output[ix,iy] = float(zz[0])
-        endfor
-        UPDATE_PROGRESSBAR, imageProgressBarWID, $                    ;Update the progress bar to show the latest progress
-          100*FLOAT(ix + ihwp*nx)/FLOAT(nx*n_hwp), /PERCENTAGE
-        WAIT, 0.05
-      endfor
+      ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ;This is the offending code!
+      ;It loops through each pixel, so I should make an array, vectorized, version...
+      ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+;      for ix = 0, nx-1 do begin
+;        for iy = 0, ny-1 do begin
+;          vec = reform(big_mask[ix,iy,*])
+;          ;
+;          ind = where(vec ne 0.0,nz)
+;          if(nz eq 0) then begin
+;            IF sample_image[ix,iy] GT 0 THEN sample_image[ix,iy] = 0    ;Force this value to be considered unsampled
+;;            zz = [0.,0.]                                              ;The mean value should be 1 in the case of zero sky samples
+;            zz = REPLICATE(!VALUES.F_NAN, 2)                          ;The mean value is unknown (filled in later)
+;          endif else begin
+;            vec = vec[ind]
+;            zz = median_filtered_mean(vec)
+;          endelse
+;          ;
+;          output[ix,iy] = float(zz[0])
+;        endfor
+;        UPDATE_PROGRESSBAR, imageProgressBarWID, $                    ;Update the progress bar to show the latest progress
+;          100*FLOAT(ix + ihwp*nx)/FLOAT(nx*n_hwp), /PERCENTAGE
+;        WAIT, 0.05
+;      endfor
+      stop
+      mfmImage = jm_median_filtered_mean(big_mask, DIMENSION = 3)
+      imageStr = STRING(FORMAT='("HWP ",I2," of ",I2)', ihwp, n_hwp)
+      UPDATE_PROGRESSBAR, imageProgressBarWID, $                    ;Update the progress bar to show the latest progress
+        100*FLOAT(ihwp)/FLOAT(n_hwp), /PERCENTAGE
+      stop
       ;
-      output = fix_bad_pixels(output)
+      output = fix_bad_pixels(mfmImage.mean)
       ;
       ; compute new mean
       ;
@@ -355,8 +371,10 @@ PRO S3B_SUBTRACT_SUPERSKY, event
 ;  IF useMask THEN BEGIN
     S3B_path  = groupStruc.analysis_dir + 'S2_Ski_Jump_Fixes'
     maskPath  = S3B_path + PATH_SEP() + 'Masking_files'
-    maskFile  = maskPath + PATH_SEP() + 'galMask.fits'               ;The mask file location
-    mask      = READFITS(maskFile, maskHeader)
+;    maskFile  = maskPath + PATH_SEP() + 'galMask.fits'               ;The mask file location
+    maskfile  = maskPath + PATH_SEP() + 'maskInfo.dat'
+    maskHeader = READHEAD(maskFile)
+;    mask      = READFITS(maskFile, maskHeader)
     RA_cen    = SXPAR(maskHeader, 'RA_MASK')
     Dec_cen   = SXPAR(maskHeader, 'Dec_MASK')
 ;  ENDIF ELSE BEGIN
@@ -379,7 +397,16 @@ PRO S3B_SUBTRACT_SUPERSKY, event
                       AND groupStruc.groupImages[i,*] NE '', numGood)
     IF numGood GT 0 THEN BEGIN
       groupBDPfiles = REFORM(groupStruc.groupImages[i,goodFiles])
-      groupS3files  = S3A_path + PATH_SEP() + FILE_BASENAME(groupBDPfiles)
+      baseFileName  = FILE_BASENAME(groupBDPfiles)
+      groupS3Files  = baseFileName
+      strLengths    = STRLEN(baseFileName)
+      uniqLengths   = strLengths[UNIQ(strLengths, SORT(strLengths))]
+      FOR iLen = 0, N_ELEMENTS(uniqLengths) - 1 DO BEGIN
+        thisLen   = uniqLengths[iLen]
+        theseLens = WHERE(strLengths EQ thisLen)
+        groupS3files[theseLens] = S3A_path + PATH_SEP() + $
+          STRMID(baseFilename, 0, (thisLen - 4)) + 'head'
+      ENDFOR
     ENDIF
 
 ;    progressString = 'group ' + STRTRIM(i+1,2) + $                    ;Create the message to display in the progress bar
