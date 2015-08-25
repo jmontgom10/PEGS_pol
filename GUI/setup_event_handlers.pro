@@ -19,6 +19,9 @@ PRO OPEN_PPOL_PROJECT, event
     IF FILE_TEST(group_summary) THEN BEGIN
       PRINT_TEXT2, event, 'Found previous PEGS POL group summary'
       RESTORE, group_summary
+      
+      ;UPDATE_DRIVE_LETTER, group_summary
+      
       UPDATE_LOAD_TAB, event, groupStruc
       UPDATE_GROUP_SUMMARY, event, groupStruc
     ENDIF ELSE BEGIN

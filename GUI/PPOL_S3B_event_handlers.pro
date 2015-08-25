@@ -128,7 +128,7 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         ra_offs[i]  = ra_off
         dec_offs[i] = dec_off
         ;
-        ; cycle mask by this amount
+        ; Generate a mask for this image using the information from maskInfo.dat
         ;
         this_mask = GENERATE_MASK(event, 1024, 1026, xc, yc, 0.579, 2.5*skynoise, /STARS)
         ;
