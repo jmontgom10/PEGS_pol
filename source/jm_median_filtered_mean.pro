@@ -53,7 +53,7 @@ if TOTAL(FINITE(array)) gt 0 then begin
     
     ;Store the old mask and compute the new mask
     mask1 = mask                                          ;Store the old mask
-    mask  = ~finiteMask OR                                ;Mask the non-finite or outlier elements
+    mask  = ~finiteMask OR $                              ;Mask the non-finite or outlier elements
       ABS(array - medianArr) GT REBIN([scale], sz, /SAMPLE)*stdArr
 
     ;Store the array couning the valid data count in each column and recompute from the new mask

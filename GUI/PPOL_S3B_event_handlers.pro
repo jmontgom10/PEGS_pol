@@ -2,65 +2,30 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
   GROUP_NUMBER=group_number
   ;
   ; DPC 20140527
-  ;
+  ; JDM 20150824  Implemented vectorized IDL8 functionality (not backwards compatible)
+  ; 
   ; creates a supersky from a set of dithered images
   ;
   ; saves the supersky
   ;
   ; then, divides supersky into each input image and saves result
-  ;
-  ;files = dialog_pickfile(title="Images to Supersky",/multiple)
-  
+  ;  
   imageProgressBarWID = WIDGET_INFO(event.top, FIND_BY_UNAME='IMAGE_PROGRESS_BAR')
   displayWID          = WIDGET_INFO(event.top, FIND_BY_UNAME='IMAGE_DISPLAY_WINDOW')
   WIDGET_CONTROL, displayWID, GET_VALUE=windowIndex         ;Retrieve display window WID
   WSET, windowIndex                                         ;Set plot window WID
   
-  WIDGET_CONTROL, event.top, GET_UVALUE=groupStruc
-  skynoise = SXPAR(groupStruc.displayHeader, 'SIGMA')
-  testDir  = groupStruc.analysis_dir + 'S3B_Supersky_subtraction'
-  IF ~FILE_TEST(testDir, /DIRECTORY) THEN FILE_MKDIR, testDir
+  WIDGET_CONTROL, event.top, GET_UVALUE=groupStruc          ;Retrieve the groupStruc info structure
+  skynoise = SXPAR(groupStruc.displayHeader, 'SIGMA')       ;Retrieve the skynoise from the structure
   
-  testDir1   = testDir + PATH_SEP() + 'Supersky_flats'
-  IF ~FILE_TEST(testDir1, /DIRECTORY) THEN FILE_MKDIR, testDir1
-  
-  testDir1   = testDir + PATH_SEP() + 'Supersky_subtracted'
-  IF ~FILE_TEST(testDir1, /DIRECTORY) THEN FILE_MKDIR, testDir1
-  
+  ;Test that there are an identical number of image and astrometry files for this group
   IF N_ELEMENTS(imageFiles) NE N_ELEMENTS(astrometryFiles) THEN STOP
   nfiles = N_ELEMENTS(imageFiles)
   ;
-  ; sort the image list
+  ; store the default Mimir image size
   ;
-  ;ind = sort(files)
-  ;files = files[ind]
-  
-  ;
-  ; read the mask
-  ;;
-  ;mask_0 = readfits(dialog_pickfile(title='Mask image'))
-  ;;
-  ;;  get the galaxy center x, y for first image
-  ;;
-  ;read, PROMPT="First Image Galaxy Center (X,Y) in pixels = ",x_cen, y_cen
-  ;
-  ; get the galaxy RA, Dec from the first image
-  ;
-  ;a = readfits(files[0],header)
-;  image_size = size(mask_0)
-;  nx = image_size[1]
-;  ny = image_size[2]
   nx = 1024
   ny = 1026
-  ;image_mean = fltarr(nfiles)
-  ;;
-  ;;  compute ra, dec of mask center
-  ;;
-  ;extast, header, astrom
-  ;;
-  ;;  get x, y location of galaxy center in pixels and apply to the mask
-  ;;
-  ;xy2ad, x_cen, y_cen, astrom, RA_cen, Dec_cen ;
   ;
   ; read the images to group by HWP first
   ;
@@ -70,15 +35,14 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
     hwp[i] = SXPAR(header, "MB_HWP")
   endfor
   ;
-  ; how many of each kind?
+  ; how many images of each HWP angle?
   ;
   ind = SORT(hwp)
   hwp_uniq = hwp(ind[uniq(hwp[ind])])
   n_hwp = N_ELEMENTS(hwp_uniq)
   print, "Found ",n_hwp," different HWP angles: ",hwp_uniq
   ;
-  ; for each unique HWP angle, collect the dithered images to form
-  ; superskies
+  ; for each unique HWP angle, collect the dithered images to form superskies
   ;
   for ihwp = 0, n_hwp-1 do begin
     this_hwp = hwp_uniq[ihwp]
@@ -95,22 +59,18 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
       dec_offs    = INTARR(n_hwp_files)
       ;
       for i = 0, n_hwp_files-1 do begin
-;        a      = readfits(hwp_imageFiles[i])
-;        header = headfits(hwp_astroFiles[i])
-        a      = readfits(hwp_imageFiles[i]);, header)
+        ;Read in the BDP image and the Step3 astrometry header info
+        a      = readfits(hwp_imageFiles[i])
         header = readhead(hwp_astroFiles[i])
         ;
         if(i eq 0) then begin
-          image_mean = fltarr(n_hwp_files)
-          ;
+          ;Initalize arrays to store images and string headers
+          image_mean   = fltarr(n_hwp_files)
           sample_image = fltarr(ny,ny)
-          big_mask = fltarr(nx,ny,n_hwp_files)
-          big_image = fltarr(nx,ny,n_hwp_files)
-          ;
-          ; save the headers
-          ;
-          big_header = strarr(250, n_hwp_files)
-          n_header = lonarr(n_hwp_files)
+          big_mask     = fltarr(nx,ny,n_hwp_files)
+          big_image    = fltarr(nx,ny,n_hwp_files)
+          big_header   = strarr(250, n_hwp_files)
+          n_header     = lonarr(n_hwp_files)
         endif
         ;
         ; save header
@@ -118,7 +78,7 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         n_header[i] = N_ELEMENTS(header)
         big_header[0:n_header[i]-1,i] = header[*]
         ;
-        ; compute means
+        ; compute mean of this image
         ;
         zz = median_filtered_mean(a[50:nx-50:10,50:ny-50:10])
         image_mean[i] = zz[0]
@@ -152,8 +112,6 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
           stop
         endelse
         ;
-        ; determine shift of mask
-        ;
         ; extract astrometry from header
         ;
         extast, header, astrom
@@ -161,6 +119,8 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         ; get x, y location of galaxy center in pixels
         ;
         ad2xy, RA_cen, Dec_cen, astrom, xc, yc
+        ;
+        ; determine shift of mask
         ;
         ra_off  = ROUND(xc - 512)
         dec_off = ROUND(yc - 513)
@@ -170,13 +130,10 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         ;
         ; cycle mask by this amount
         ;
-;        this_mask = SMART_SHIFT(mask_0, ra_off, dec_off)
         this_mask = GENERATE_MASK(event, 1024, 1026, xc, yc, 0.579, 2.5*skynoise, /STARS)
-;        TVIM, this_mask
         ;
-        sample_image += (1.0 - this_mask)
-;        masked_image  = a[*,*] * (1.0 - this_mask)
-        masked_image  = a
+        sample_image += (1.0 - this_mask)                   ;Accumulate a count of the number of pixels sampled
+        masked_image  = a                                   ;Make a copy of this image
         masked_image[where(this_mask)] = !VALUES.F_NAN
         ;
         ;quick debugging examination
@@ -198,42 +155,15 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         ;
       endfor
       ;
-      ; for each pixel, compute mfm and put into output image
-      ;
-;      output = fltarr(nx,ny)
-      ;
+      ;Generate the supersky image for this HWP angle
       printString = STRING((ihwp+1),n_hwp, FORMAT='("Generating supersky image for HWP #",I2," of ",I2)')
       PRINT_TEXT2, event, printString
-      ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ;This is the offending code!
-      ;It loops through each pixel, so I should make an array, vectorized, version...
-      ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-;      for ix = 0, nx-1 do begin
-;        for iy = 0, ny-1 do begin
-;          vec = reform(big_mask[ix,iy,*])
-;          ;
-;          ind = where(vec ne 0.0,nz)
-;          if(nz eq 0) then begin
-;            IF sample_image[ix,iy] GT 0 THEN sample_image[ix,iy] = 0    ;Force this value to be considered unsampled
-;;            zz = [0.,0.]                                              ;The mean value should be 1 in the case of zero sky samples
-;            zz = REPLICATE(!VALUES.F_NAN, 2)                          ;The mean value is unknown (filled in later)
-;          endif else begin
-;            vec = vec[ind]
-;            zz = median_filtered_mean(vec)
-;          endelse
-;          ;
-;          output[ix,iy] = float(zz[0])
-;        endfor
-;        UPDATE_PROGRESSBAR, imageProgressBarWID, $                    ;Update the progress bar to show the latest progress
-;          100*FLOAT(ix + ihwp*nx)/FLOAT(nx*n_hwp), /PERCENTAGE
-;        WAIT, 0.05
-;      endfor
       mfmImage = jm_median_filtered_mean(big_mask, DIMENSION = 3)
       imageStr = STRING(FORMAT='("HWP ",I2," of ",I2)', (ihwp+1), n_hwp)
       UPDATE_PROGRESSBAR, imageProgressBarWID, $                    ;Update the progress bar to show the latest progress
         100*FLOAT(ihwp+1)/FLOAT(n_hwp), DISPLAY_MESSAGE = imageStr
       ;
-      output = fix_bad_pixels(mfmImage.mean)
+      output = fix_bad_pixels(mfmImage.mean)                        ;Repair any anomalous pixels in the supersky image
       ;
       ; compute new mean
       ;
@@ -254,12 +184,11 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
       ind_bad = WHERE(bad_image,nbad)
       if(nbad gt 0) then begin
         output[ind_bad] = median_output[ind_bad]
-        ;        output[ind_bad] = 1.0
       endif
       ;
       ; fill all the unfilled pixels with NANS
       ;
-      print, 'New Output mean, dispersion = ',zz[0],zz[1]
+      print, 'New output mean, dispersion = ', zz[0], zz[1]
       ind = WHERE(sample_image eq 0, numUnknown)
       print, 'There are ', numUnknown, ' pixels with no unmasked measurements.'
       if numUnknown GT 0 then begin
@@ -278,34 +207,23 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         output = INPAINT_NANS(output, SMOOTHING_RESOLUTION = minorAxis/4, COUNT=count)
         PRINT_TEXT2, event, 'Numerical inpainting completed in ' + STRTRIM(count, 2) + ' iterations.'
       endif
-;
-;      goodPix   = WHERE(FINITE(output), COMPLEMENT = badPix, NCOMPLEMENT = numBad)
-;      IF numBad GT 0 THEN BEGIN
-;        output[badPix] = 1E
-;        PRINT_TEXT2, event, 'Smoothing supersky image with a large Gaussian'
-;        kernel    = GAUSSIAN_FUNCTION([30,30], WIDTH = 90, /NORMALIZE)
-;        filledImg = CONVOL(output, kernel, /EDGE_TRUNCATE)
-;        filledImg[goodPix] = output[goodPix]
-;        PRINT_TEXT2, event, 'Refining solution with nuerical heat transfer method'
-;        diff  = TOTAL(ABS(output[badPix] - filledImg[badPix]))/numBad
-;        count = 0
-;        WHILE diff GT 5E-5 DO BEGIN
-;          filledImg1 = SMOOTH(filledImg,10, /EDGE_TRUNCATE)
-;          filledImg1[goodPix] = output[goodPix]
-;          diff      = TOTAL(ABS(filledImg1[badPix] - filledImg[badPix]))/numBad
-;          filledImg = filledImg1
-;          count++
-;          IF count GT 10000 THEN diff = 1E-5
-;        ENDWHILE
-;        output = filledImg
-;      ENDIF
+      ;
+      ;Estimate the supersky noise for use in the LEE-FILTER
       SKY, output, flatMode, flatNoise, /SILENT
       output = LEEFILT(output, 3, 1.5*flatnoise, /EXACT)
       ;
-      out_path = groupStruc.analysis_dir + 'S3B_Supersky_subtraction' + PATH_SEP() + 'Supersky_flats' + PATH_SEP() + $
+      ;Write the supersky image to disk
+      out_path = groupStruc.analysis_dir + 'S3_Astrometry' + PATH_SEP() + 'Supersky_flats' + PATH_SEP() + $
         STRING(group_number, 10*this_hwp, FORMAT='("group",I02,"_HWP",I04)') + '_SuperSky.fits'
       writefits, out_path, output
       
+      ;Display the output image to the user
+      titleStr = STRING((ihwp+1), FORMAT='("Supersky for HWP ", I2)')
+      TVIM, output, range = flatMode + [-3,+5]*flatNoise, TITLE = titleStr
+      WAIT, 0.05
+      ;***
+      ;These lines of code will save several diagnostic images for debugging purposes
+      ;***
       ;      out_path = 'supersky_images' + PATH_SEP() + $
       ;        STRING(group_number, 10*this_hwp, FORMAT='("group",I02,"_HWP",I04)') + '_pixelSampling.fits'
       ;      writefits, out_path, sample_image
@@ -316,10 +234,10 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
       ; and apply to the inputs
       ;
       new_names = FILE_BASENAME(hwp_imageFiles)
-      new_paths = groupStruc.analysis_dir + 'S3B_Supersky_subtraction' $
-        + PATH_SEP() + 'Supersky_subtracted' + PATH_SEP() + new_names
-      ;      new_paths = new_dir + PATH_SEP() + new_names
+      new_paths = groupStruc.analysis_dir + 'S3_Astrometry' $
+        + PATH_SEP() + new_names
       ;
+      ;Loop through each HWP file and subtract the new supersky image from it
       for i = 0, n_hwp_files-1 do begin
         ;
         ; division method:
@@ -344,7 +262,7 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         SXADDPAR, this_header, "HISTORY", 'Background flattened with SUPERSKY_GROUPS.pro'
         str = '  using sky scaled subtraction on ' + GETENV('COMPUTERNAME') + ' by ' + GETENV('USERNAME') + ' at ' + SYSTIME()
         SXADDPAR, this_header, "HISTORY", str
-        writefits, new_paths[i],a,this_header
+        WRITEFITS, new_paths[i], a, this_header
         
       endfor
     endif else begin
@@ -359,58 +277,52 @@ PRO S3B_SUBTRACT_SUPERSKY, event
   tlb_wid = WIDGET_INFO(event.top, FIND_BY_UNAME='WID_BASE')          ;Retrieve the TLB widget ID
   WIDGET_CONTROL, tlb_wid, GET_UVALUE=groupStruc                      ;Retrieve the group summary structure
   
-;  useMaskWID = WIDGET_INFO(event.top, FIND_BY_UNAME='GALAXY_MASK_CHECKBOX')
-;  WIDGET_CONTROL, useMaskWID, GET_VALUE = useMask                     ;Get the mask checkbox value
+  ;Test if the directory structure is in place and build it if it is not
+  testDir  = groupStruc.analysis_dir + 'S3_Astrometry'
+  testDir1 = testDir + PATH_SEP() + 'Supersky_flats'
+  IF ~FILE_TEST(testDir1, /DIRECTORY) THEN FILE_MKDIR, testDir1
   
   groupProgressBarWID = WIDGET_INFO(event.top, FIND_BY_UNAME='GROUP_PROGRESS_BAR')
   imageProgressBarWID = WIDGET_INFO(event.top, FIND_BY_UNAME='IMAGE_PROGRESS_BAR')
 
-  S3A_path = groupStruc.analysis_dir + 'S3_Astrometry'
-;  IF useMask THEN BEGIN
-    S3B_path  = groupStruc.analysis_dir + 'S2_Ski_Jump_Fixes'
-    maskPath  = S3B_path + PATH_SEP() + 'Masking_files'
-;    maskFile  = maskPath + PATH_SEP() + 'galMask.fits'               ;The mask file location
-    maskfile  = maskPath + PATH_SEP() + 'maskInfo.dat'
-    maskHeader = READHEAD(maskFile)
-;    mask      = READFITS(maskFile, maskHeader)
-    RA_cen    = SXPAR(maskHeader, 'RA_MASK')
-    Dec_cen   = SXPAR(maskHeader, 'Dec_MASK')
-;  ENDIF ELSE BEGIN
-;    mask    = FLTARR(1024, 1026)
-;    RA_cen  = 0
-;    Dec_cen = 0
-;  ENDELSE
+  ;Costruct some basic path strings
+  S3A_path   = groupStruc.analysis_dir + 'S3_Astrometry'
+  S3B_path   = groupStruc.analysis_dir + 'S2_Ski_Jump_Fixes'
+  maskPath   = S3B_path + PATH_SEP() + 'Masking_files'
+  maskfile   = maskPath + PATH_SEP() + 'maskInfo.dat'
 
+  ;Read in the mask information file and extract the mask (RA, Dec) center
+  maskHeader = READHEAD(maskFile)
+  RA_cen     = SXPAR(maskHeader, 'RA_MASK')
+  Dec_cen    = SXPAR(maskHeader, 'Dec_MASK')
+
+  ;Count the number of groups for which to build supersky images
   numGoodGroups = TOTAL(groupStruc.groupFlags)
   groupCount    = 0
+  
+  ;Loop through each group in the PPOL project
   FOR i = 0, groupStruc.numGroups - 1 DO BEGIN
+    ;Skip any groups with groupFlags[i]=0
     IF groupStruc.groupFlags[i] EQ 0 THEN CONTINUE
     groupCount++
     groupProgString = STRING(groupCount, numGoodGroups, FORMAT='("Group ",I2," of ",I2)')
     UPDATE_PROGRESSBAR, groupProgressBarWID, 100*FLOAT(i+1)/numGoodGroups, DISPLAY_MESSAGE=groupProgString
     WAIT, 0.05
-    
+
+    ;Count the number of files in this group with good astrometry    
     goodFiles     = WHERE(groupStruc.astroFlags[i,*] EQ 1 $
                       OR  groupStruc.astroFlags[i,*] EQ 2 $
                       AND groupStruc.groupImages[i,*] NE '', numGood)
+
+    ;Check that at least one good file was found
     IF numGood GT 0 THEN BEGIN
+      ;Build the filenames for all relevant files
       groupBDPfiles = REFORM(groupStruc.groupImages[i,goodFiles])
-      baseFileName  = FILE_BASENAME(groupBDPfiles)
-      groupS3Files  = baseFileName
-      strLengths    = STRLEN(baseFileName)
-      uniqLengths   = strLengths[UNIQ(strLengths, SORT(strLengths))]
-      FOR iLen = 0, N_ELEMENTS(uniqLengths) - 1 DO BEGIN
-        thisLen   = uniqLengths[iLen]
-        theseLens = WHERE(strLengths EQ thisLen)
-        groupS3files[theseLens] = S3A_path + PATH_SEP() + $
-          STRMID(baseFilename, 0, (thisLen - 4)) + 'head'
-      ENDFOR
+      groupS3files  = S3A_path + PATH_SEP() + $
+        FILE_BASENAME(groupBDPfiles, '.fits') + '.head'
     ENDIF
 
-;    progressString = 'group ' + STRTRIM(i+1,2) + $                    ;Create the message to display in the progress bar
-;      ' of ' + STRTRIM(groupStruc.numGroups,2)
-;    UPDATE_PROGRESSBAR, groupProgressBarWID, $                        ;Update the progress bar to show the latest progress
-;      100*FLOAT(i+1)/groupStruc.numGroups, DISPLAY_MESSAGE=progressString
+    ;Apply the supersky procedure to THIS group
     SUPERSKY_GROUP, event, groupBDPfiles, groupS3files, RA_cen, Dec_cen, $
       GROUP_NUMBER=(i+1)
   
@@ -633,14 +545,9 @@ PRO S3B_REFINE_ASTROMETRY, event
   WIDGET_CONTROL, displayWID, GET_VALUE=windowIndex                   ;Retrieve display window WID
   WSET, windowIndex                                                   ;Set plot window WID
   
-  
-  S3files = groupStruc.analysis_dir + 'S3B_Supersky_subtraction' $    ;File paths
-    + PATH_SEP() + 'Supersky_subtracted' + PATH_SEP() + '*.fits'
+  ;Find all the astrometrically registered *.fits images
+  S3files = groupStruc.analysis_dir + 'S3_Astrometry' + PATH_SEP() + '*.fits'
   S3files = FILE_SEARCH(S3files, COUNT=nfiles)
-  IF nFiles EQ 0 THEN BEGIN
-    S3files = groupStruc.analysis_dir + 'S3_Astrometry' + PATH_SEP() + '*.fits'
-    S3files = FILE_SEARCH(S3files, COUNT=nfiles)
-  ENDIF
   
   hwp = FLTARR(nfiles)                                                ;Initalize array to store HWP angles
   FOR j = 0, nfiles - 1 DO BEGIN
@@ -712,40 +619,40 @@ PRO S3B_REFINE_ASTROMETRY, event
 
 END
 
-PRO S3B_SWAP_FILES, event
-  
-  currentS3filesWID = WIDGET_INFO(event.top, FIND_BY_UNAME='S3B_S3_CURRENT_FILES')
-  tlb_wid           = WIDGET_INFO(event.top, FIND_BY_UNAME='WID_BASE');Retrieve the TLB widget ID
-  WIDGET_CONTROL, tlb_wid, GET_UVALUE=groupStruc                      ;Retrieve the group summary structure
-  
-  S3A_dir       = groupStruc.analysis_dir + 'S3_Astrometry'
-  S3A_backupDir = S3A_dir + PATH_SEP() + 'backup'
-  S3B_dir       = groupStruc.analysis_dir + 'S3B_Supersky_subtraction' $
-    + PATH_SEP() + 'Supersky_subtracted'
-  IF ~FILE_TEST(S3A_backupDir, /DIRECTORY) $                          ;Make sure a backup directory exists
-    THEN FILE_MKDIR, S3A_backupDir
-
-  IF groupStruc.currentS3files EQ 'not supersky flattened' THEN BEGIN
-    S3A_files = S3A_dir + PATH_SEP() + '*.fits'
-    S3B_files = S3B_dir + PATH_SEP() + '*.fits'
-    FILE_MOVE, S3A_files, S3A_backupDir                               ;Move the original files into the backup directory
-    FILE_MOVE, S3B_files, S3A_dir                                     ;Move the flattened files into the original directory
-    
-;    groupStruc.currentS3files = 'supersky flattened'
-    UPDATE_GROUP_SUMMARY, event, groupStruc, 'currentS3files', 'supersky flattened', /SAVE
-    WIDGET_CONTROL, currentS3filesWID, SET_VALUE='supersky flattened'
-    
-  ENDIF ELSE IF groupStruc.currentS3files EQ 'supersky flattened' THEN BEGIN
-    S3B_files = S3A_dir + PATH_SEP() + '*.fits'
-    S3A_Files = S3A_dir + PATH_SEP() + 'backup' + PATH_SEP() + '*.fits'
-    FILE_MOVE, S3B_files, S3B_dir                                     ;Restore the flattened files to the S3B directory
-    FILE_MOVE, S3A_files, S3A_dir                                     ;Restore the original files into the S3 directory
-    
-;    groupStruc.currentS3files = 'not supersky flattened'
-    UPDATE_GROUP_SUMMARY, event, groupStruc, 'currentS3files', 'not supersky flattened', /SAVE
-    WIDGET_CONTROL,currentS3filesWID, SET_VALUE='not supersky flattened'
-    
-  ENDIF
-
-  
-END
+;PRO S3B_SWAP_FILES, event
+;  
+;  currentS3filesWID = WIDGET_INFO(event.top, FIND_BY_UNAME='S3B_S3_CURRENT_FILES')
+;  tlb_wid           = WIDGET_INFO(event.top, FIND_BY_UNAME='WID_BASE');Retrieve the TLB widget ID
+;  WIDGET_CONTROL, tlb_wid, GET_UVALUE=groupStruc                      ;Retrieve the group summary structure
+;  
+;  S3A_dir       = groupStruc.analysis_dir + 'S3_Astrometry'
+;  S3A_backupDir = S3A_dir + PATH_SEP() + 'backup'
+;  S3B_dir       = groupStruc.analysis_dir + 'S3B_Supersky_subtraction' $
+;    + PATH_SEP() + 'Supersky_subtracted'
+;  IF ~FILE_TEST(S3A_backupDir, /DIRECTORY) $                          ;Make sure a backup directory exists
+;    THEN FILE_MKDIR, S3A_backupDir
+;
+;  IF groupStruc.currentS3files EQ 'not supersky flattened' THEN BEGIN
+;    S3A_files = S3A_dir + PATH_SEP() + '*.fits'
+;    S3B_files = S3B_dir + PATH_SEP() + '*.fits'
+;    FILE_MOVE, S3A_files, S3A_backupDir                               ;Move the original files into the backup directory
+;    FILE_MOVE, S3B_files, S3A_dir                                     ;Move the flattened files into the original directory
+;    
+;;    groupStruc.currentS3files = 'supersky flattened'
+;    UPDATE_GROUP_SUMMARY, event, groupStruc, 'currentS3files', 'supersky flattened', /SAVE
+;    WIDGET_CONTROL, currentS3filesWID, SET_VALUE='supersky flattened'
+;    
+;  ENDIF ELSE IF groupStruc.currentS3files EQ 'supersky flattened' THEN BEGIN
+;    S3B_files = S3A_dir + PATH_SEP() + '*.fits'
+;    S3A_Files = S3A_dir + PATH_SEP() + 'backup' + PATH_SEP() + '*.fits'
+;    FILE_MOVE, S3B_files, S3B_dir                                     ;Restore the flattened files to the S3B directory
+;    FILE_MOVE, S3A_files, S3A_dir                                     ;Restore the original files into the S3 directory
+;    
+;;    groupStruc.currentS3files = 'not supersky flattened'
+;    UPDATE_GROUP_SUMMARY, event, groupStruc, 'currentS3files', 'not supersky flattened', /SAVE
+;    WIDGET_CONTROL,currentS3filesWID, SET_VALUE='not supersky flattened'
+;    
+;  ENDIF
+;
+;  
+;END

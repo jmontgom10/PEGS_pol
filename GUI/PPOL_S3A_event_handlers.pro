@@ -753,7 +753,16 @@ PRO S3A_CHECK_ASTROMETRY, event
       headExists = (FILE_INFO(headFile)).exists
       astroFlag   = groupStruc.astroFlags[i,j]
       IF (~headExists) AND (astroFlag EQ 3) THEN CONTINUE
-      IF (~headExists) AND (astroFlag NE 3) THEN STOP       ;This astrometry was rejected...
+      ;If there is no astrometry header file, then check for a PPOL S3 image file
+      IF (~headExists) AND (astroFlag NE 3) THEN BEGIN
+        S3File = groupStruc.analysis_dir + 'S3_Astrometry' + $ ;Construct the PPOL S3 filename
+        PATH_SEP() + FILE_BASENAME(imgFile)
+        IF (FILE_INFO(S3File)).exists THEN BEGIN            ;Check if PPOL wrote an astrometry image
+          header = HEADFITS(S3File)                         ;Read the PPOL astrometry header 
+          WRITEHEAD, headFile, header                       ;Write the astrometry header to disk
+          FILE_DELETE, S3file                               ;Delete the PPOl astrometry image
+        ENDIF
+      ENDIF
       
       ;Read the files from disk
       img    = READFITS(imgFile, /SILENT)
