@@ -228,12 +228,10 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
 ;          100*FLOAT(ix + ihwp*nx)/FLOAT(nx*n_hwp), /PERCENTAGE
 ;        WAIT, 0.05
 ;      endfor
-      stop
       mfmImage = jm_median_filtered_mean(big_mask, DIMENSION = 3)
-      imageStr = STRING(FORMAT='("HWP ",I2," of ",I2)', ihwp, n_hwp)
+      imageStr = STRING(FORMAT='("HWP ",I2," of ",I2)', (ihwp+1), n_hwp)
       UPDATE_PROGRESSBAR, imageProgressBarWID, $                    ;Update the progress bar to show the latest progress
-        100*FLOAT(ihwp)/FLOAT(n_hwp), /PERCENTAGE
-      stop
+        100*FLOAT(ihwp+1)/FLOAT(n_hwp), DISPLAY_MESSAGE = imageStr
       ;
       output = fix_bad_pixels(mfmImage.mean)
       ;

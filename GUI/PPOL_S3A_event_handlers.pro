@@ -626,31 +626,26 @@ PRO S3A_ASTROMETRY_REPAIR, event
         reject_wid, save_wid])
 ;      STOP
       IF decisionEvent.ID EQ acceptPhoto_wid THEN BEGIN
-        filename = groupStruc.analysis_dir + 'S3_Astrometry' $          ;Set the path for the file to be saved
-          + PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j])
-;        WRITEFITS, filename, fixedImg, header                           ;Write the file to disk
+        filename = groupStruc.analysis_dir + 'S3_Astrometry' + $ ;Construct the name of the output header file
+          PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j], '.fits') + '.head'
         WRITEHEAD, filename, header                                     ;Write the file to disk
         groupStruc.imageFlags[i,j] = 1                   ;Update image usage flag
-        groupStruc.astroFlags[i,j] = 1                   ;Update the astrometry flag
-;        UPDATE_GROUP_SUMMARY, event, groupStruc                        ;Write image usage flags to disk
+        groupStruc.astroFlags[i,j] = 1                   ;Update the astrometry flag to 'photometry quality'
       ENDIF ELSE IF decisionEvent.ID EQ acceptAstro_wid THEN BEGIN
-        filename = groupStruc.analysis_dir + 'S3_Astrometry' $          ;Set the path for the file to be saved
-          + PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j])
-;        WRITEFITS, filename, fixedImg, header                           ;Write the file to disk
+        filename = groupStruc.analysis_dir + 'S3_Astrometry' + $ ;Construct the name of the output header file
+          PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j], '.fits') + '.head'
         WRITEHEAD, filename, header                                     ;Write the file to disk
         groupStruc.imageFlags[i,j] = 1                   ;Update image usage flag
-        groupStruc.astroFlags[i,j] = 2                   ;Update the astrometry flag
+        groupStruc.astroFlags[i,j] = 2                   ;Update the astrometry flag 'use in supersky only'
       ENDIF ELSE IF decisionEvent.ID EQ reject_wid THEN BEGIN
         groupStruc.imageFlags[i,j] = 0                   ;Update image usage flag
-        groupStruc.astroFlags[i,j] = 3                   ;Set the astrometry flag to '2'
-;        UPDATE_GROUP_SUMMARY, event, groupStruc                        ;Update the group structure
+        groupStruc.astroFlags[i,j] = 3                   ;Update the astrometry flag to 'unable to solve astrometry'
       ENDIF ELSE IF decisionEvent.ID EQ save_wid THEN BEGIN
-        filename = groupStruc.analysis_dir + 'S3_Astrometry' $          ;Set the path for the file to be saved
-          + PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j])
-;        WRITEFITS, filename, fixedImg, header                           ;Write the file to disk
+        filename = groupStruc.analysis_dir + 'S3_Astrometry' + $ ;Construct the name of the output header file
+          PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j], '.fits') + '.head'
         WRITEHEAD, filename, header                                     ;Write the file to disk
         groupStruc.imageFlags[i,j] = 1                   ;Update image usage flag
-        groupStruc.astroFlags[i,j] = 1                   ;Update the astrometry flag
+        groupStruc.astroFlags[i,j] = 1                   ;Update the astrometry flag to 'photometry quality'
         UPDATE_GROUP_SUMMARY, event, groupStruc, /SAVE                  ;Write image usage flags to disk
         
         WIDGET_CONTROL, save_wid, SENSITIVE=0                           ;Desensitize the button
@@ -751,21 +746,26 @@ PRO S3A_CHECK_ASTROMETRY, event
       imageProgString = STRING((j+1), groupStruc.groupNumbers[i], FORMAT='("Image ",I2," of ",I2)')
       UPDATE_PROGRESSBAR, imageProgWID, 100*FLOAT(j+1)/groupStruc.groupNumbers[i], DISPLAY_MESSAGE=imageProgString
 
-      filename = groupStruc.analysis_dir + 'S3_Astrometry' $          ;Set the path for the file to be saved
-        + PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j])
+      imgFile  = groupStruc.groupImages[i,j]                ;Select this image to check
+      headFile = groupStruc.analysis_dir + 'S3_Astrometry' + $ ;Construct the name of the output header file
+        PATH_SEP() + FILE_BASENAME(imgFile, '.fits') + '.head'
       
-      fileExists = (FILE_INFO(filename)).exists
-      fileFlag   = groupStruc.astroFlags[i,j]
-      IF (~fileExists) AND (fileFlag EQ 3) THEN CONTINUE
-      IF (~fileExists) AND (fileFlag NE 3) THEN STOP
+      headExists = (FILE_INFO(headFile)).exists
+      astroFlag   = groupStruc.astroFlags[i,j]
+      IF (~headExists) AND (astroFlag EQ 3) THEN CONTINUE
+      IF (~headExists) AND (astroFlag NE 3) THEN STOP       ;This astrometry was rejected...
       
-      img = READFITS(filename, header, /SILENT)
-      sz  = SIZE(img, /DIMENSIONS)
+      ;Read the files from disk
+      img    = READFITS(imgFile, /SILENT)
+      header = READHEAD(headFile)
+      sz     = SIZE(img, /DIMENSIONS)
       
+      ;Determine the brightness properties and display image to user
       G_SKY, img, skymode, skynoise, mfm_mean, mfm_sig, /SILENT
       TVIM, img, RANGE = skymode + [-3,+10]*skynoise
       XYOUTS, 0.5, 0.96, FILE_BASENAME(groupStruc.groupImages[i,j]), /NORMAL, ALIGNMENT = 0.5
-      
+
+      ;Use astrometry to solve for star positions      
       EXTAST, header, astr
       AD2XY, starInfo.RAJ2000, starInfo.DEJ2000, astr, $
         xStars, yStars
@@ -774,11 +774,17 @@ PRO S3A_CHECK_ASTROMETRY, event
                         (yStars GT 0) AND $
                         (yStars LT (sz[1]-1)), numStars)
       IF numStars GT 0 THEN BEGIN
+        ;If there are more than one stars to display,
+        ;show the user where they are.
+        ;The user can check if these locations are correct.
         xStars = xStars[keepStars]
         yStars = yStars[keepStars]
         OPLOT, xStars, yStars, PSYM = 6, SYMSIZE = 0.5, COLOR = green
         ARROWS, header, 0.9*sz[0], 0.72*sz[1], /DATA                      ;Show the North-East compas as sanity check
       ENDIF ELSE BEGIN
+        ;If there are no stars on the image,
+        ;then clearly something went wrong,
+        ;and the user will have the chance to debug the problem.
         PRINT, 'This image sucks...'
         STOP
       ENDELSE
