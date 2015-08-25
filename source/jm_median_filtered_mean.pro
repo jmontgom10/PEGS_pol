@@ -23,14 +23,14 @@ endif
 if TOTAL(FINITE(array)) gt 0 then begin
   sz           = SIZE(array, /DIMENSIONS)                ;Grab the dimensionality of the array
   dimensionLen = FLOAT(sz[dimension-1])                  ;Figure out the length of the stacking dimension
-;  PRINT, FORMAT='("Computing median-filtered-mean image for a stack of ", I3, " images.")', dimensionLen
 
   ;To use the same procedure as the original median_filtered_mean,
   ;we should begin be masking at 2.2 sigma and loop UP until we reach 3 sigma.
   mask           = BYTE(0*array)  ;Initalize an empty mask array
   numMaskChanged = 1              ;Counter for the number of elements changed in this iteration
   iterCount      = 0              ;Counter for the number of times through the whwile loop
-  numPoints      = dimensionLen   ;On the first loop, ALL points along DIMENSION will be used in statistics
+  finiteMask     = FINITE(array)  ;Mark the finite elements of the array
+  numPoints      = TOTAL(finiteMask, dimension) ;Count the number of usable elements along the DIMENSION axis
   scale          = 2.2            ;Initalize scale value at 2.2 (sigma)
   FOR iloop = 0, 4 DO BEGIN
     ;Setup the coppied array and mask all the rejected values
@@ -51,9 +51,10 @@ if TOTAL(FINITE(array)) gt 0 then begin
 
     stdArr    = TEMPORARY(REBIN(stdArr, sz, /SAMPLE))     ;Expand the stdArr back into a stack
     
-    ;Now store the old mask and compute the new mask
+    ;Store the old mask and compute the new mask
     mask1 = mask                                          ;Store the old mask
-    mask  = ABS(array - medianArr) gt REBIN([scale], sz, /SAMPLE)*stdArr    ;Find pixels more than scale*sigma from the median
+    mask  = ~finiteMask OR                                ;Mask the non-finite or outlier elements
+      ABS(array - medianArr) GT REBIN([scale], sz, /SAMPLE)*stdArr
 
     ;Store the array couning the valid data count in each column and recompute from the new mask
     numPoints1 = numPoints                                ;Store the old array of numPoints
