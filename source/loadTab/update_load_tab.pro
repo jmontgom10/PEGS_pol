@@ -81,9 +81,9 @@ PRO UPDATE_LOAD_TAB, event, groupStruc
     FILE_MKDIR, S2dir + PATH_SEP() + 'Supersky_subtracted'
   ENDIF
 
-  ;Test if the S11B directory exists and create it if it does not.
+  ;Test if the 2MASS image has already been downloaded.
   IF ~FILE_TEST(NIRfilename) THEN BEGIN
-    PRINT_TEXT2, event, 'Downloading 2MASS cutout image'
+    PRINT_TEXT2, event, 'Contacting 2MASS-LGA cutout service'
     ;Download a 2MASS tile image if it is not already done
     ;This code uses the IRSA "cutouts" service
     ;(http://irsa.ipac.caltech.edu/applications/Cutouts/docs/CutoutsProgramInterface.html)
@@ -93,8 +93,7 @@ PRO UPDATE_LOAD_TAB, event, groupStruc
       ELSE IF groupStruc.medianRA LT 100 THEN raStr = STRING(groupStruc.medianRA, FORMAT = '(D08.5)') $
       ELSE  raStr = STRING(groupStruc.medianRA, FORMAT = '(D09.5)')
     
-    locStr = 'locstr=' + raStr + '+' + decStr
-;    locStr  = 'locstr=' + STRING(FORMAT='(D09.5,"+",D+9.5,"+eq")', groupStruc.medianRA, groupStruc.medianDec)
+    locStr  = 'locstr=' + raStr + '+' + decStr
     LGA_URL = 'http://irsa.ipac.caltech.edu/cgi-bin/Cutouts/nph-cutouts?mission=LGA&min_size=1&max_size=3600&units=arcmin&' + locStr + $
       '&sizeX=16.0&ntable_cutouts=3&cutouttbl1=LGA_J_band&cutouttbl2=LGA_H_band&cutouttbl3=LGA_K_band&mode=PI'
     LGA_XML = WEBGET(LGA_URL)
@@ -106,6 +105,8 @@ PRO UPDATE_LOAD_TAB, event, groupStruc
       cutoutText  = LGA_XML.text[cutoutStart:cutoutEnd]
       FITS_ind    = WHERE(STRMATCH(cutoutText, '*_' + $
         STRMID(STRLOWCASE(groupStruc.NIRband),0,1) + '.fits*'), numFound)
+      
+      ; Test if any images were found
       IF numFound GT 0 THEN BEGIN
         FITS_URL   = (STRSPLIT(cutoutText[FITS_ind], ' ', /EXTRACT))[1]
         FITS_image = WEBGET(FITS_URL)
@@ -117,28 +118,61 @@ PRO UPDATE_LOAD_TAB, event, groupStruc
           groupStruc.objectName + '_' + groupStruc.NIRband + 'band.fits'
         WRITEFITS, NIRfilename, $                                     ;Save this file on the disk
           FITS_image.image, FITS_image.imageheader
-      ENDIF ELSE BEGIN
+      ENDIF
         PRINT_TEXT2, event, 'Could not find a *.fits cutout image'
-        STOP
-        RETURN
-      ENDELSE
-      
+    ENDIF
+
     ;Otherwise try the 2MASS server
-    ENDIF ELSE BEGIN
-      locStr       = 'POS=' + STRING(FORMAT='(D09.5,",",+D9.5,"+eq")', groupStruc.medianRA, groupStruc.medianDec)
-      radius       = SQRT(2)*16.0/60.0                                  ;Circular ROI spanning 16-arcmin SQUARE ROI
-      TWO_MASS_URL = 'http://irsa.ipac.caltech.edu/cgi-bin/2MASS/IM/nph-im_sia?' + $
-        locStr + '&' + 'SIZE=' + STRING(FORMAT='(D09.5)', radius) + '&FORMAT=image/fits'
-      TWO_MASS_XML = WEBGET(TWO_MASS_URL)
-  
-      ;If successful XML retrieval, then download the 2MASS images
-      IF two_mass_xml.text[8] EQ '<INFO name="QUERY_STATUS" value="OK" />' THEN BEGIN
-        PRINT_TEXT2, event, ' 2MASS mosaic tool not working yet...
-      ENDIF ELSE BEGIN
-        PRINT_TEXT2, event, 'No images found... skipping image procedure'
-        RETURN
-      ENDELSE
-    ENDELSE
+    IF numFound EQ 0 THEN BEGIN
+      ;Download a 2MASS tile image if it is not already done
+      PRINT_TEXT2, event, '2MASS MOT not yet working'
+      ;*****************************************************************
+      ;
+      ;The code below is not yet working (downloaded fits are messed up)
+      ;
+      ;*****************************************************************
+      ;This code uses the IRSA SIA service
+      ;(http://irsa.ipac.caltech.edu/applications/2MASS/IM/docs/siahelp.html)
+;      IF groupStruc.medianDec LT 10 THEN decStr = STRING(groupStruc.medianDec, FORMAT = '(D+8.5)') $
+;      ELSE decStr = STRING(groupStruc.medianDec, FORMAT = '(D+9.5)')
+;      IF groupStruc.medianRA LT 10 THEN raStr = STRING(groupStruc.medianRA, FORMAT = '(D07.5)') $
+;      ELSE IF groupStruc.medianRA LT 100 THEN raStr = STRING(groupStruc.medianRA, FORMAT = '(D08.5)') $
+;      ELSE  raStr = STRING(groupStruc.medianRA, FORMAT = '(D09.5)')
+;      
+;      locStr       = 'POS=' + raStr + ',' + decStr
+;      radius       = SQRT(2)*16.0/60.0                                  ;Circular ROI spanning 16-arcmin SQUARE ROI
+;      TWO_MASS_URL = 'http://irsa.ipac.caltech.edu/cgi-bin/2MASS/IM/nph-im_sia?' + $
+;        locStr + '&SIZE=' + STRING(FORMAT='(D09.5)', radius) + $
+;        '&band=' + STRMID(STRUPCASE(groupStruc.NIRband),0,1) + '&FORMAT=image/fits'
+;      TWO_MASS_XML = WEBGET(TWO_MASS_URL)
+;      
+;      ;If successful XML retrieval, then download the 2MASS images
+;      IF two_mass_xml.text[8] EQ '<INFO name="QUERY_STATUS" value="OK" />' THEN BEGIN
+;        PRINT_TEXT2, event, 'Starting 2MASS mosaic tool'
+;        
+;        
+;        imgURLs  = WHERE(STRMATCH(two_mass_XML.text, '*nph-im*'), numFound)
+;          
+;        ;Loop through the found images and download them all...
+;        FOR i = 0, numFound - 1 DO BEGIN
+;          imgURL     = two_mass_XML.text[imgURLs[i]]
+;          imgURL     = (STRSPLIT(imgURL, '[', /EXTRACT))[2]
+;          imgURL     = (STRSPLIT(imgURL, ']', /EXTRACT))[0]
+;
+;          FITS_image = WEBGET(imgURL, /COPYFILE)
+;          S2dir        = groupStruc.analysis_dir + 'S2_Ski_Jump_Fixes'
+;          maskDir      = S2dir + PATH_SEP() + 'Masking_files'
+;          IF ~FILE_TEST(maskDir, /DIRECTORY) THEN FILE_MKDIR, maskDir
+;          NIRfilename = S2dir + PATH_SEP() + 'Masking_files' + PATH_SEP() + $
+;            groupStruc.objectName + '_' + groupStruc.NIRband + 'band.fits'
+;          WRITEFITS, NIRfilename, $                                     ;Save this file on the disk
+;            FITS_image.image, FITS_image.imageheader
+;         ENDFOR
+;      ENDIF ELSE BEGIN
+;        PRINT_TEXT2, event, 'No images found... skipping image procedure'
+;        RETURN
+;      ENDELSE
+    ENDIF
   ENDIF
   
   ;Load and display 2MASS tile image
@@ -174,8 +208,15 @@ PRO UPDATE_LOAD_TAB, event, groupStruc
 
 ;  UPDATE_GROUP_SUMMARY, event, groupStruc
 
-;  SKY, displayImage, skyMode, skyNoise, /SILENT
-  skyNoise = SXPAR(displayHeader, 'SIGMA')
+  ;Check if an image was successfully downloaded.
+  IF N_ELEMENTS(displayHeader) GT 0 THEN BEGIN
+    skyNoise = SXPAR(displayHeader, 'SIGMA')
+    ;Check if the SIGMA parameter of the downloaded image tells us about the sky noise
+    IF skyNoise EQ 0 THEN BEGIN
+      SKY, displayImage, skyMode, skyNoise, /SILENT         ;Estimate the skyNoise from the image values.
+    ENDIF
+  ENDIF
+
   IF skyNoise EQ 0 THEN BEGIN
     skyParam = STRMID(groupStruc.NIRband,0,1) + 'SKYSIG'
     skyNoise = SXPAR(displayHeader, skyParam)
