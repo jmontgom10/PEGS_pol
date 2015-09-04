@@ -322,10 +322,10 @@ PRO S3B_SUBTRACT_SUPERSKY, event
 
   ;Costruct some basic path strings
   S3A_path   = groupStruc.analysis_dir + 'S3_Astrometry'
-  S3B_path   = groupStruc.analysis_dir + 'S2_Ski_Jump_Fixes'
-  maskPath   = S3B_path + PATH_SEP() + 'Masking_files'
+  S2_path    = groupStruc.analysis_dir + 'S2_Ski_Jump_Fixes'
+  maskPath   = S2_path + PATH_SEP() + 'Masking_files'
   maskfile   = maskPath + PATH_SEP() + 'maskInfo.dat'
-
+  stop
   ;Read in the mask information file and extract the mask (RA, Dec) center
   maskHeader = READHEAD(maskFile)
   RA_cen     = SXPAR(maskHeader, 'RA_MASK')
@@ -348,13 +348,20 @@ PRO S3B_SUBTRACT_SUPERSKY, event
     goodFiles     = WHERE(groupStruc.astroFlags[i,*] EQ 1 $
                       OR  groupStruc.astroFlags[i,*] EQ 2 $
                       AND groupStruc.groupImages[i,*] NE '', numGood)
-
+    
     ;Check that at least one good file was found
     IF numGood GT 0 THEN BEGIN
       ;Build the filenames for all relevant files
       groupBDPfiles = REFORM(groupStruc.groupImages[i,goodFiles])
       groupS3files  = S3A_path + PATH_SEP() + $
         FILE_BASENAME(groupBDPfiles, '.fits') + '.head'
+      stop
+      FOR j = 0, numGood - 1 DO BEGIN
+        S2file = groupStruc.analysis_dir + $
+          'S2_Ski_Jump_Fixes' + PATH_SEP() + FILE_BASENAME(groupBDPfiles[j])
+        IF FILE_TEST(S2file) THEN groupBDPfiles[j] = S2file
+      ENDFOR
+      STOP
     ENDIF
 
     ;Apply the supersky procedure to THIS group

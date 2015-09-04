@@ -52,21 +52,20 @@ PRO UPDATE_PPOL_PATH, analysis_dir
 ;********** NOW FIX THE PEGS POL GROUP SUMMARIES **********
   RESTORE, PEGS_summary                                  ;Read in the original group summary
   groupStruc.analysis_dir = STRJOIN(PPOLparts, PATH_SEP()) + PATH_SEP()
-  
+
   ;Modify the group summary to includ the new PPOL path
   new_group_images        = groupStruc.groupImages         ;Create an aliased set of image names
   FOR j = 0, groupStruc.numGroups - 1 DO BEGIN
     PRINT, 'Fixing paths for group ' + groupStruc.groupNames[j]
     FOR k = 0, N_ELEMENTS(groupStruc.groupImages[j,*]) - 1 DO BEGIN
       IF STRLEN(new_group_images[j,k]) GT 0 THEN BEGIN
-        temp_image   = STRSPLIT(new_group_images[j,k], PATH_SEP(), /EXTRACT)
-        fitsExten    = WHERE(STRMID(temp_image, 3, 4, /REVERSE) EQ 'fits')
-        temp_image   = BDPdir + PATH_SEP() + temp_image[fitsExten]
+        temp_image   = BDPdir + FILE_BASENAME(new_group_images[j,k])
         new_group_images[j,k] = temp_image
       ENDIF
     ENDFOR
   ENDFOR
   groupStruc.groupImages = new_group_images
+
   UPDATE_GROUP_SUMMARY, groupStruc, /SAVE
 
 PRINT, 'Done!'

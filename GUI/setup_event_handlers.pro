@@ -19,11 +19,13 @@ PRO OPEN_PPOL_PROJECT, event
     IF FILE_TEST(group_summary) THEN BEGIN
       PRINT_TEXT2, event, 'Found previous PEGS POL group summary'
       RESTORE, group_summary
-      IF groupStruc.analysis_dir NE analysis_dir THEN $
+
+      IF groupStruc.analysis_dir NE analysis_dir THEN BEGIN
         UPDATE_PPOL_PATH, analysis_dir
-      
-      UPDATE_LOAD_TAB, event, groupStruc
+        groupStruc.analysis_dir = analysis_dir
+      ENDIF
       UPDATE_GROUP_SUMMARY, event, groupStruc
+      UPDATE_LOAD_TAB, event, groupStruc
     ENDIF ELSE BEGIN
       group_summary = analysis_dir + PATH_SEP() + $
         'S1_Image_Groups_and_Meta_Groups' + PATH_SEP() + 'Group_Summary.sav'
@@ -127,7 +129,6 @@ PRO OPEN_PPOL_PROJECT, event
         coverageBoundaries:{RA:[0D,0D], Dec:[0D,0D]}, $
         NIRband:NIRband, $
         stepCompletion:'', $
-;        numS3failed:-1L, $
         currentS3files:'not supersky flattened', $
         numGroups:numGroups, $
         groupNames:groupNames, $
