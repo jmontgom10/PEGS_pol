@@ -19,8 +19,8 @@ PRO OPEN_PPOL_PROJECT, event
     IF FILE_TEST(group_summary) THEN BEGIN
       PRINT_TEXT2, event, 'Found previous PEGS POL group summary'
       RESTORE, group_summary
-      
-      ;UPDATE_DRIVE_LETTER, group_summary
+      IF groupStruc.analysis_dir NE analysis_dir THEN $
+        UPDATE_PPOL_PATH, analysis_dir
       
       UPDATE_LOAD_TAB, event, groupStruc
       UPDATE_GROUP_SUMMARY, event, groupStruc
@@ -199,7 +199,6 @@ PRO RENAME_OBJECT, event, objectName
     
     WIDGET_CONTROL, objectNameWID, EDITABLE = 0                               ;Desensitize the text box
     WIDGET_CONTROL, objectNameWID, GET_VALUE = objectName                     ;Access the new name
-;    groupStruc.objectName = objectName                                       ;Reset object name in group structure
     
     UPDATE_GROUP_SUMMARY, event, groupStruc, 'objectName', objectName, /SAVE  ;Store the updated data to disk
   ENDIF
