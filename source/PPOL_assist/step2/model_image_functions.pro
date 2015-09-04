@@ -47,7 +47,7 @@ FUNCTION  SERSIC_DISK, x,y,p
     y2  = ((xr2*0+1)#yc2) - 7                             ;y positions of all pixels in PSF image
     b   = TWO_MASS_SERSIC_PSF(x2, y2, p[8:*])
   ENDELSE
-  convolImage = CONVOL(modelImage,b,total(b))             ;Convolve the model galaxy with a model PSF to simulate seeing
+  convolImage = CONVOL(modelImage,b,total(b), /EDGE_TRUNCATE);Convolve the model galaxy with a model PSF to simulate seeing
   
   RETURN, convolImage
   
@@ -199,7 +199,7 @@ FUNCTION BULGE_AND_ONE_SERSIC_DISK, x,y,p
     y2  = ((xr2*0+1)#yc2) - 7                               ;y positions of all pixels in PSF image
     b   = TWO_MASS_SERSIC_PSF(x2, y2, p[11:*])
   ENDELSE
-  convolImage = convol(modelImage,b,total(b))               ;convolve the model galaxy with the PSF to model seeing
+  convolImage = convol(modelImage,b,total(b), /EDGE_TRUNCATE);convolve the model galaxy with the PSF to model seeing
 
   RETURN, convolImage
   
@@ -255,7 +255,7 @@ FUNCTION BULGE_AND_EXP_RADIAL_SECH2_VERTICAL_DISK, x,y,p
     b   = TWO_MASS_SERSIC_PSF(x2, y2, p[10:*])
   ENDELSE
   
-  convolImage = convol(modelImage,b,total(b));convolve the model galaxy with the PSF to model seeing
+  convolImage = convol(modelImage,b,total(b), /EDGE_TRUNCATE);convolve the model galaxy with the PSF to model seeing
   RETURN, convolImage
   
 END
@@ -346,7 +346,7 @@ FUNCTION BULGE_AND_TWO_SERSIC_DISKS, x,y,p
     y2  = ((xr2*0+1)#yc2) - 7                               ;y positions of all pixels in PSF image
     b   = TWO_MASS_SERSIC_PSF(x2, y2, p[15:*])
   ENDELSE
-  convolImage = convol(modelImage,b,total(b))               ;convolve the model galaxy with the PSF to model seeing
+  convolImage = convol(modelImage,b,total(b), /EDGE_TRUNCATE);convolve the model galaxy with the PSF to model seeing
   RETURN, convolImage
   
 END

@@ -189,22 +189,57 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
       ; fill all the unfilled pixels with NANS
       ;
       print, 'New output mean, dispersion = ', zz[0], zz[1]
-      ind = WHERE(sample_image eq 0, numUnknown)
+      NANind = WHERE(sample_image eq 0, numUnknown)
       print, 'There are ', numUnknown, ' pixels with no unmasked measurements.'
       if numUnknown GT 0 then begin
-        output[ind] = !VALUES.F_NAN                         ;Mark unsampled data with NANs
-        deltaX      = MEAN(ra_offs)                         ;Compute the centroided poistion...
-        deltaY      = MEAN(dec_offs)                        ;...relative to [512,513]
-        angle       = groupStruc.GAL_PA + 90E               ;Rotate by PA
-        rotSample   = ROT(sample_image, angle, 1E, $        ;Rotate the sample image
+        output[NANind] = !VALUES.F_NAN                         ;Mark unsampled data with NANs
+        deltaX         = MEAN(ra_offs)                         ;Compute the centroided poistion...
+        deltaY         = MEAN(dec_offs)                        ;...relative to [512,513]
+        angle          = groupStruc.GAL_PA + 90E               ;Rotate by PA
+        rotSample      = ROT(sample_image, angle, 1E, $        ;Rotate the sample image
           (512 + deltaX), (513 + deltaY), CUBIC = -0.5, /PIVOT)
-        minorAxis = FIX(TOTAL((rotSample LT 1E)[(512 + deltaX),*]));Estimate the minor axis of the unsampled region
+        minorAxis            = FIX(TOTAL((rotSample LT 1E)[(512 + deltaX),*]));Estimate the minor axis of the unsampled region
+        smoothing_resolution = FIX(minorAxis/3)
+        ;
+        ; find and fill all the NAN values within 3*smoothing_resolution of the edge
+        ;
+        NANxy         = ARRAY_INDICES(output, NANind)
+        pixInBorder   = (NANxy[0,*] LT 3*smoothing_resolution) OR $
+                        (NANxy[0,*] GT nx - 3*smoothing_resolution - 1) OR $
+                        (NANxy[1,*] LT 3*smoothing_resolution) OR $
+                        (NANxy[1,*] GT ny - 3*smoothing_resolution - 1)
+        borderNANinds = WHERE(pixInBorder, numInBorder)
+        IF numInBorder GT 0 THEN BEGIN
+          PRINT_TEXT2, event, 'Filling the NAN pixels near the image edges.'
+          FOR fillInd = 0, numInBorder - 1 DO BEGIN
+            thisInd = NANxy[*,borderNANinds[fillInd]]
+            ;Make sure we've grabbed a NAN value
+            IF FINITE(output[thisInd[0],thisInd[1]]) THEN STOP
+
+            ;Search for a large enough box to fill this pixel with a median
+            delta = 2
+            done  = 0
+            WHILE ~done DO BEGIN
+              lf = (thisInd[0] - delta) & rt = (thisInd[0] + delta)
+              bt = (thisInd[1] - delta) & tp = (thisInd[1] + delta)
+              nearbyMed = MEDIAN(output[lf:rt,lf:rt], /EVEN)
+              IF ~FINITE(nearbyMed) THEN delta++ ELSE BEGIN
+                output[thisInd[0],thisInd[1]] = nearbyMed
+                done = 1
+              ENDELSE
+              IF delta GT 10 THEN BEGIN
+                output[thisInd[0],thisInd[1]] = 1.0
+                done = 1
+              ENDIF
+            ENDWHILE
+          ENDFOR
+        ENDIF
         ;
         ; find all the NAN values and fill them in using a numerical "heat transfer" solution
         ;
         PRINT_TEXT2, event, 'Applying numerical heat transfer method to fill in unsampled pixels...'
-        PRINT_TEXT2, event, '...using smoothing kernel width ' + STRTRIM(FIX(minorAxis)/4, 2)
-        output = INPAINT_NANS(output, SMOOTHING_RESOLUTION = minorAxis/4, COUNT=count)
+        PRINT_TEXT2, event, '...using smoothing kernel width ' + STRTRIM(smoothing_resolution, 2)
+        output = INPAINT_NANS(output, SMOOTHING_RESOLUTION = smoothing_resolution, COUNT=count)
         PRINT_TEXT2, event, 'Numerical inpainting completed in ' + STRTRIM(count, 2) + ' iterations.'
       endif
       ;

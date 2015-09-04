@@ -199,10 +199,8 @@ if(tv3 ge criterion and tv4 ge criterion) then ski_jump[1] = 2
 t_str = ''
 if(ski_jump[0] eq 2 or ski_jump[1] eq 2) then t_str = 'abnormal jump'
 ;
-if(t_str ne '') then begin
-  print_text2, event, "For Image "+FILE_BASENAME(image_path)+" Ski jump T sigmas = "+STRING(format='(4(F7.1,1x))',t1,t2,t3,t4)+' '+t_str
-  print_text2, event, '   and TV sigmas = '+STRING(format='(4(F7.1,1x))',tv1,tv2,tv3,tv4)
-endif
+print_text2, Event, "For Image "+FILE_BASENAME(image_path)+" Ski jump T sigmas = "+STRING(format='(4(F7.1,1x))',t1,t2,t3,t4)+' '+t_str
+if(t_str ne '') then print_text2, Event, '   and TV sigmas = '+STRING(format='(4(F7.1,1x))',tv1,tv2,tv3,tv4)
 ;
 ski_jump_code = ski_jump[0] + 10 * ski_jump[1]
 ;

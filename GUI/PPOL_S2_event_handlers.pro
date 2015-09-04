@@ -841,7 +841,7 @@ PRO S2_BUILD_GALAXY_MASK, event
   xMaskStars   = xMimirStars[maskStars]                     ;Pick out the x and y locations of the stars to be masked
   yMaskStars   = yMimirStars[maskStars]
   
-  mask = 0B*galMask                                          ;Alias the original galaxy mask
+  mask = galMask                                            ;Alias the original galaxy mask
   FOR i = 0, numMasked - 1 DO BEGIN
     IF (xMaskStars[i] GT 10) AND (xMaskStars[i] LT nxMimir - 10) AND $
       (yMaskStars[i] GT 10) AND (yMaskStars[i] LT nyMimir - 10) THEN BEGIN
@@ -859,7 +859,6 @@ PRO S2_BUILD_GALAXY_MASK, event
     LEVELS = levels, C_ANNOTATION = labels, /OVERPLOT, COLOR=redInd
   XYOUTS, 0.5, 0.045, 'This is your mask!', /NORMAL, ALIGNMENT=0.5
   XYOUTS, 0.5, 0.0125, 'Click to save file', /NORMAL, ALIGNMENT=0.5
-  
   CURSOR, junk1, junk2, /DOWN
   
   XY2AD, parameterStructure.parameters[0], parameterStructure.parameters[1], cropAstr, $
@@ -920,21 +919,37 @@ PRO S2_PEGS_SKI_JUMP_REPAIR, event
 
   FOR i = 0, groupStruc.numGroups - 1 DO BEGIN              ;Loop through each of the groups
     goodFiles = WHERE(groupStruc.groupImages[i,*] NE '', numGood)
+    ;
+    progressString = 'group ' + STRTRIM(i+1,2) + $          ;Create the message to display in the progress bar
+      ' of ' + STRTRIM(groupStruc.numGroups,2)
+    UPDATE_PROGRESSBAR, groupProgressBarWID, $              ;Update the progress bar to show the latest progress
+      100*FLOAT(i+1)/groupStruc.numGroups, DISPLAY_MESSAGE=progressString
+    WAIT, 0.05
     FOR j = 0, numGood - 1 DO BEGIN
       image_path = groupStruc.groupImages[i,goodFiles[j]]   ;Grab the 'image_path' for this particular image
       S2_PEGS_SKI_JUMP_DETECTOR, event, image_path, $       ;Use the PPOL ski jump detector with a 6.0-sigma detection threshold
         ski_jump_code, CRITERION=6.0
-      ski_jump_str = STRTRIM(ski_jump_code, 2)
-      IF (ski_jump_str EQ 2) OR $
-         (ski_jump_str EQ 20) OR $
-         (ski_jump_str EQ 21) OR $
-         (ski_jump_str EQ 12) THEN BEGIN   
+      ;
+      ; ski_jump_code -
+      ;   00 = top, bottom OK
+      ;   10, 01 = top or bottom bad
+      ;   11 = both bad
+      ;
+      ; if test showed no correction needed, set let to green and jump past fix
+      ;
+;      if(ski_jump_code eq 0) then ski_jump_flag = 0 else ski_jump_flag = 1
+      ;
+      ski_jump_str = STRING(ski_jump_code, FORMAT = '(I02)')
+      IF ski_jump_str NE STRING(0, FORMAT = '(I02)') THEN BEGIN
+        fileTest = FILE_TEST(groupStruc.analysis_dir + $    ;Test if this file has already been corrected
+          PATH_SEP() + 'S2_Ski_Jump_Fixes' + PATH_SEP() + FILE_BASENAME(image_path))
+        IF fileTest THEN CONTINUE                           ;Skip files than have already been corrected
         img      = READFITS(image_path, BDPhead)            ;Read in the ski-jump image
         filename = STRSPLIT(image_path, PATH_SEP(), /EXTRACT) ;Construct the new file name for the flattened image
         filename = (REVERSE(filename))[0]                   ;Grab the actual file name
         
-        SKY, img, skyMode, skyNoise, /SILENT
-        TVIM, img, RANGE = skyMode + [-3,+20]*skyNoise, $   ;Display the ski-jump image
+        SKY, img, skyMode, imgNoise, /SILENT
+        TVIM, img, RANGE = skyMode + [-3,+20]*imgNoise, $   ;Display the ski-jump image
           TITLE=filename
         XYOUTS, 0.5, 0.045, 'Click on the galaxy center', /NORMAL, ALIGNMENT=0.5
         CURSOR, Xcen, Ycen, /DATA, /DOWN                    ;Estimage the galaxy center
@@ -943,7 +958,8 @@ PRO S2_PEGS_SKI_JUMP_REPAIR, event
         clickCounter = 0
         done         = 0
         WHILE done EQ 0 DO BEGIN
-          TVIM, centerImg, RANGE = skyMode + [-3,+250]*skyNoise;Display the central region
+          SKY, centerImg, skyMode, imgNoise, /SILENT
+          TVIM, centerImg, RANGE = skyMode + [-3,+20]*imgNoise;Display the central region
           XYOUTS, 0.5, 0.95, 'Click on the galaxy center', /NORMAL, ALIGNMENT=0.5
           CURSOR, Xcen1, Ycen1, /DATA, /DOWN                ;Better estimate the galaxy center
           GCNTRD, centerImg, Xcen1, Ycen1, Xcen1, Ycen1, 3.0;Centroid the flux in that region
@@ -953,7 +969,7 @@ PRO S2_PEGS_SKI_JUMP_REPAIR, event
           OPLOT, [0, 60], [Ycen1, Ycen1], $
             LINESTYLE = 2, THICK = 2
           
-          XYOUTS, 0.5, 0.045, 'Right click to approve center fit', /NORMAL, ALIGNMENT=0.5
+          XYOUTS, 0.5, 0.045, 'Right click to approve center location', /NORMAL, ALIGNMENT=0.5
           XYOUTS, 0.5, 0.0125, 'Left click to try again', /NORMAL, ALIGNMENT=0.5
           
           CURSOR, junk1, junk2, /DOWN
@@ -964,23 +980,17 @@ PRO S2_PEGS_SKI_JUMP_REPAIR, event
         ENDWHILE
         
         IF done EQ 2 THEN BEGIN
-          done = 0
-          WHILE done EQ 0 DO BEGIN
-            TVIM, centerImg, RANGE = skyMode + [-3,+250]*skyNoise;Display the central region
-            XYOUTS, 0.5, 0.95, 'Click on the galaxy center', /NORMAL, ALIGNMENT=0.5
-            CURSOR, Xcen1, Ycen1, /DATA, /DOWN              ;Better estimate the galaxy center
-            OPLOT, [Xcen1, Xcen1], [0, 60], $               ;Mark the estimated galaxy center
-              LINESTYLE = 2, THICK = 2
-            OPLOT, [0, 60], [Ycen1, Ycen1], $
-              LINESTYLE = 2, THICK = 2
-              
-            XYOUTS, 0.5, 0.045, 'Right click to approve center fit', /NORMAL, ALIGNMENT=0.5
-            XYOUTS, 0.5, 0.0125, 'Left click to try again', /NORMAL, ALIGNMENT=0.5
+          TVIM, centerImg, RANGE = skyMode + [-3,+50]*skyNoise;Display the central region
+          XYOUTS, 0.5, 0.95, 'FINAL ATTEMPT... JUST CLICK ON CENTER', /NORMAL, ALIGNMENT=0.5
+          CURSOR, Xcen1, Ycen1, /DATA, /DOWN              ;Better estimate the galaxy center
+          OPLOT, [Xcen1, Xcen1], [0, 60], $               ;Mark the estimated galaxy center
+            LINESTYLE = 2, THICK = 2
+          OPLOT, [0, 60], [Ycen1, Ycen1], $
+            LINESTYLE = 2, THICK = 2
             
-            CURSOR, junk1, junk2, /DOWN
-            IF !MOUSE.button EQ 4 $                         ;Query user if they're done
-              THEN done = 1                                 ;Either exit or try again
-          ENDWHILE          
+          XYOUTS, 0.5, 0.0125, 'Click to proceed', /NORMAL, ALIGNMENT=0.5
+          
+          CURSOR, junk1, junk2, /DOWN
         ENDIF
         
         Xgal = Xcen + (Xcen1-30)                            ;Shift the centroided value back to image coordinates
@@ -988,27 +998,47 @@ PRO S2_PEGS_SKI_JUMP_REPAIR, event
         
         deltaX = Xgal - 512                                 ;Compute the X and Y shifts for the mask
         deltaY = Ygal - 513
-;        shiftedMask = GENERATE_MASK(event, 1024, 1026, Xgal, Ygal, 0.579, 2.5*skynoise, /STARS)
-        shiftedMask = SMART_SHIFT(mask, deltaX, deltaY)     ;Shift the mask to match the galaxy
-
-        EDGE_BENDER, img, shiftedMask, flatImg              ;Flatten the image
-        
-        TVIM, flatImg, RANGE = skyMode + [-3,+20]*skyNoise, $ ;Display the central region
-          TITLE=filename
-
+        shiftedMask = GENERATE_MASK(event, 1024, 1026, Xgal, Ygal, 0.579, 2.5*skynoise)
+        ;
+        ;Model the ski-jump and subtract model from the image
+        ;
+        model       = pegs_ski_jump_fit(img, ski_jump_code, MASK = shiftedMask, BAD_PIXEL_MAP = bad_pixel_map)
+        resid_image = img - model
+        ;
+        ; determine mean sky from  UNMASKED PIXELS in the center of original image
+        ;
+        sz = SIZE(img, /DIMENSIONS)
+        image_center = img[fix(5*sz[0]/16):fix(11*sz[0]/16),fix(5*sz[1]/16):fix(11*sz[1]/16)]
+        mask_center  = (shiftedMask OR bad_pixel_map)[fix(5*sz[0]/16):fix(11*sz[0]/16),fix(5*sz[1]/16):fix(11*sz[1]/16)]
+        goodInds     = where(mask_center EQ 0, numNotMasked)
+        IF numnotMasked GT 0 THEN BEGIN
+          vec          = REFORM(image_center[goodInds])
+          image_mean   = (jm_median_filtered_mean(vec)).mean
+          resid_image += image_mean
+        ENDIF ELSE STOP
+        ;
+        ;Fill in the bad pixels with the bad_pix_value
+        ;
+        bad_pix_value = -1E6
+        maskInds      = WHERE(bad_pixel_map, numMasked)
+        IF numMasked GT 0 THEN BEGIN
+          resid_image[maskInds] = bad_pix_value
+        ENDIF
+        ;
+        FXADDPAR, BDPhead, "HISTORY", "Subtracted Model Ski Jump using PEGS_pol, Step 2"
+        ;
+        ;Display the repaired image to the user?
+        ;
         filePath = S2dir + filename                         ;Tag on the S2 directory in front
-        WRITEFITS, filePath, flatImg, BDPhead               ;Write the file to disk
+        WRITEFITS, filePath, resid_image, BDPhead           ;Write the file to disk
+        SKY, resid_image, skyMode, skyNoise
+        TVIM, resid_image, RANGE = skyMode + [-3,+20]*skyNoise, $ ;Display the repaired image
+          TITLE=filename
       ENDIF
       UPDATE_PROGRESSBAR, imageProgressBarWID, $            ;Update the progress bar to show the latest progress
         100*FLOAT(j+1)/numGood, /PERCENTAGE
         WAIT, 0.05
     ENDFOR
-    
-    progressString = 'group ' + STRTRIM(i+1,2) + $          ;Create the message to display in the progress bar
-      ' of ' + STRTRIM(groupStruc.numGroups,2)
-    UPDATE_PROGRESSBAR, groupProgressBarWID, $              ;Update the progress bar to show the latest progress
-      100*FLOAT(i+1)/groupStruc.numGroups, DISPLAY_MESSAGE=progressString
-    WAIT, 0.05
   ENDFOR
   
   PRINT_TEXT2, event, 'Done with the ski-jump removal procedure'
