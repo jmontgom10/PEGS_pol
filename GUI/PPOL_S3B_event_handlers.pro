@@ -325,7 +325,7 @@ PRO S3B_SUBTRACT_SUPERSKY, event
   S2_path    = groupStruc.analysis_dir + 'S2_Ski_Jump_Fixes'
   maskPath   = S2_path + PATH_SEP() + 'Masking_files'
   maskfile   = maskPath + PATH_SEP() + 'maskInfo.dat'
-  stop
+  
   ;Read in the mask information file and extract the mask (RA, Dec) center
   maskHeader = READHEAD(maskFile)
   RA_cen     = SXPAR(maskHeader, 'RA_MASK')
@@ -355,13 +355,12 @@ PRO S3B_SUBTRACT_SUPERSKY, event
       groupBDPfiles = REFORM(groupStruc.groupImages[i,goodFiles])
       groupS3files  = S3A_path + PATH_SEP() + $
         FILE_BASENAME(groupBDPfiles, '.fits') + '.head'
-      stop
       FOR j = 0, numGood - 1 DO BEGIN
+        IF groupBDPfiles[j] EQ 'P:\NGC891_H-POL_201110\BDP_reduced\20111008.2450_LDFC.fits' THEN STOP
         S2file = groupStruc.analysis_dir + $
           'S2_Ski_Jump_Fixes' + PATH_SEP() + FILE_BASENAME(groupBDPfiles[j])
         IF FILE_TEST(S2file) THEN groupBDPfiles[j] = S2file
       ENDFOR
-      STOP
     ENDIF
 
     ;Apply the supersky procedure to THIS group

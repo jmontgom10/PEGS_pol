@@ -144,11 +144,11 @@ PRO OPEN_PPOL_PROJECT, event
       PRINT_TEXT2, event, 'Testing for failed astrometry images'
       FOR i = 0, groupStruc.numGroups - 1 DO BEGIN
         FOR j = 0, groupStruc.groupNumbers[i] - 1 DO BEGIN
-          S3filename = groupStruc.analysis_dir + PATH_SEP() + $         ;Setup the path to the file to be tested
-            'S3_Astrometry' + PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j])
+          S3filename = groupStruc.analysis_dir + $                      ;Setup the path to the file to be tested
+            'S3_Astrometry' + PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j], '.fits') + '.head'
           S3fileTest = FILE_TEST(S3filename)                            ;Check if that file even exists (passed PPOL step 3)
           IF S3fileTest THEN BEGIN
-            header  = HEADFITS(S3filename)                              ;Check if the existing file has reliable astrometry
+            header  = READHEAD(S3filename)                              ;Check if the existing file has reliable astrometry
             numStar = SXPAR(header, 'PPOLNSTR')
             IF numStar LT 3 THEN groupStruc.astroFlags[i,j] = 0         ;Mark all files that fail these tests
           ENDIF ELSE groupStruc.astroFlags[i,j] = 0

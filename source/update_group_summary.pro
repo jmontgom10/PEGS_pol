@@ -1,11 +1,10 @@
 PRO UPDATE_GROUP_SUMMARY, event, groupStruc, tag_name, tag_value, SAVE=save
-
+  
   ;***** FIRST UPDATE THE GROUP STRUCTURE ITSELF *****
   ;Check if the user supplied additional tags to include in the structure
   IF (N_PARAMS() GE 4)  AND $                               ;Check that all the parameters have been provided
     (N_ELEMENTS(tag_name) GT 0) AND $                       ;and that the number of tags
-    (N_ELEMENTS(tag_value) GT 0) AND $                      ;matches the number of values
-    (N_ELEMENTS(tag_name) EQ N_ELEMENTS(tag_value)) THEN BEGIN
+    (N_ELEMENTS(tag_value) GT 0) THEN BEGIN
 
     num_old_tags = N_TAGS(groupStruc)                       ;Count the number of tags originally in the structure
     old_tags     = TAG_NAMES(groupStruc)                    ;List the old tag names
@@ -39,6 +38,7 @@ PRO UPDATE_GROUP_SUMMARY, event, groupStruc, tag_name, tag_value, SAVE=save
       ;proceed to create a NEW structure containing all the old tags
       ;and appending all the new tags
       appendInds = WHERE(~tagUpdated, numAppend)            ;Locate which tags were not updated
+      stop
       FOR i = 0, numAppend - 1 DO BEGIN                     ;Loop through the tags to be appended
         this_tag   = appendInds[i]                          ;Select each tag to append
         groupStruc = CREATE_STRUCT(groupStruc, tag_name[this_tag], tag_value[this_tag]);append the tag

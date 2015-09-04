@@ -178,8 +178,14 @@ PRO UPDATE_LOAD_TAB, event, groupStruc
   ;Load and display 2MASS tile image
   WIDGET_CONTROL, imageDisplayWID, GET_VALUE = displayWindowIndex
   displayImage = READFITS(NIRfilename,  displayHeader)
-
-  ;Add the "displayImage" and "displayHeader" to the group structure
+  
+  IF ~TAG_EXIST('displayImage', groupStruc) OR ~TAG_EXIST('displayImage', groupStruc) THEN BEGIN
+    UPDATE_GROUP_SUMMARY, event, groupStruc, 'displayImage', displayImage
+    UPDATE_GROUP_SUMMARY, event, groupStruc, 'displayHeader', displayHeader
+    UPDATE_GROUP_SUMMARY, groupStruc, /SAVE
+  ENDIF
+  
+;Add the "displayImage" and "displayHeader" to the group structure
 ;  groupStruc = { $
 ;    PEGS_POL_dir:groupStruc.PEGS_POL_dir, $
 ;    analysis_dir:groupStruc.analysis_dir, $
