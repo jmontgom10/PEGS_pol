@@ -1,6 +1,8 @@
 FUNCTION INPAINT_NANS, img, SMOOTHING_RESOLUTION=smoothing_resolution, SMOOTHING_KERNEL = smoothing_kernel, COUNT=count
 
-  IF N_ELEMENTS(smoothing_resolution) EQ 0 THEN smoothing_resolution = 10
+  IF (N_ELEMENTS(smoothing_resolution) NE 0) AND (N_ELEMENTS(smoothing_kernel) NE 0) THEN STOP
+  IF (N_ELEMENTS(smoothing_resolution) EQ 0) AND $
+     (N_ELEMENTS(smoothing_kernel) EQ 0) THEN smoothing_resolution = 10
   IF N_ELEMENTS(smoothing_kernel) NE 0 THEN BEGIN
     kernel = smoothing_kernel
     sz     = SIZE(kernel, /DIMENSIONS)
@@ -8,7 +10,7 @@ FUNCTION INPAINT_NANS, img, SMOOTHING_RESOLUTION=smoothing_resolution, SMOOTHING
       sz = [sz, 1]
       bigKernel = INTERPOLATE(kernel, FINDGEN(2*sz[0]-1)/2, /GRID)
     ENDIF ELSE BEGIN
-      bigKernel     = INTERPOLATE(kernel, FINDGEN(2*sz[0]-1)/2, FINDGEN(2*sz[1]-1)/2, /GRID)
+      bigKernel = INTERPOLATE(kernel, FINDGEN(2*sz[0]-1)/2, FINDGEN(2*sz[1]-1)/2, /GRID)
     ENDELSE
     numPix = N_ELEMENTS(kernel)
     MAKE_2D, FINDGEN(sz[0]), FINDGEN(sz[1]), xx, yy
@@ -21,6 +23,8 @@ FUNCTION INPAINT_NANS, img, SMOOTHING_RESOLUTION=smoothing_resolution, SMOOTHING
     ;Make sure kernel width is not too large and build the kernel
     kernelWidth = 0.15*MIN(SIZE(img, /DIMENSIONS)) < 3*smoothing_resolution
     kernel      = GAUSSIAN_FUNCTION([2*smoothing_resolution, 2*smoothing_resolution], $
+      WIDTH = 3*smoothing_resolution, /NORMALIZE)
+    bigKernel   = GAUSSIAN_FUNCTION([4*smoothing_resolution, 4*smoothing_resolution], $
       WIDTH = 3*smoothing_resolution, /NORMALIZE)
     sz     = SIZE(kernel, /DIMENSIONS)
   ENDELSE
