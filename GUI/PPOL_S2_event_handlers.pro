@@ -881,17 +881,20 @@ PRO S2_BUILD_GALAXY_MASK, event
   IF ~FILE_TEST(S2_path) THEN FILE_MKDIR, S2_path                     ;Make S3B directory if necessary
   maskPath  = S2_path + PATH_SEP() + 'Masking_files'
   IF ~FILE_TEST(maskPath, /DIRECTORY) THEN FILE_MKDIR, maskPath       ;Make masking subdirectory if necessary
+  
+  ;Write the mask files to disk
   WRITEFITS, maskPath + PATH_SEP() + 'galMask.fits', galMask, maskHeader
   WRITEFITS, maskPath + PATH_SEP() + 'starMask.fits', mask, maskHeader
   WRITEFITS, maskPath + PATH_SEP() + 'mask2MASS.fits', mask2MASS
-  
-  ;Save all the mask information to a text file
-  OPENW, lun, maskPath + PATH_SEP() + 'maskInfo.dat', /GET_LUN        ;Open a file to write masking info
-  FOR j = 0, N_ELEMENTS(maskheader) - 1 DO BEGIN                      ;Loop through the header
-    PRINTF, lun, maskHeader[j]                                        ;Print each line to file
-  ENDFOR
-  CLOSE, lun                                                          ;Close the logical unit number
-  FREE_LUN, lun                                                       ;Free the logical unit number for future use
+  WRITEHEAD, maskPath + PATH_SEP() + 'maskInfo.dat', maskHeader
+  stop
+;  ;Save all the mask information to a text file
+;  OPENW, lun, maskPath + PATH_SEP() + 'maskInfo.dat', /GET_LUN        ;Open a file to write masking info
+;  FOR j = 0, N_ELEMENTS(maskheader) - 1 DO BEGIN                      ;Loop through the header
+;    PRINTF, lun, maskHeader[j]                                        ;Print each line to file
+;  ENDFOR
+;  CLOSE, lun                                                          ;Close the logical unit number
+;  FREE_LUN, lun                                                       ;Free the logical unit number for future use
 END
 
 

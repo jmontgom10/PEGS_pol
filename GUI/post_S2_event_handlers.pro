@@ -6,12 +6,12 @@ PRO S2_USE_MODEL_VALUES, event
     imgPath  = groupStruc.analysis_dir + 'S11B_Combined_Images' + $     ;Construct the combined image path
       PATH_SEP() + groupStruc.NIRband + 'band_I.fits'
     maskPath = groupStruc.analysis_dir + 'S2_Ski_Jump_Fixes' + $        ;Construct the mask path
-      PATH_SEP() + 'Masking_files' + PATH_SEP() + 'galMask.fits'
+      PATH_SEP() + 'Masking_files' + PATH_SEP() + 'maskInfo.dat'
     imgHead  = HEADFITS(imgPath)                                        ;Read in the FITS header for the image file
-    maskHead = HEADFITS(maskPath)                                       ;Read in the FITS header for the mask file
+    maskHead = READHEAD(maskPath)                                       ;Read in the FITS header for the mask file
     
-    RA_cen  = SXPAR(maskHead, 'RA_CEN')                                 ;Extract the galaxy center RA
-    DEC_cen = SXPAR(maskHead, 'DEC_CEN')                                ;Extract the galaxy center Dec
+    RA_cen  = SXPAR(maskHead, 'RA_ROT')                                 ;Extract the galaxy center RA
+    DEC_cen = SXPAR(maskHead, 'DEC_ROT')                                ;Extract the galaxy center Dec
     gal_PA  = SXPAR(maskHead, 'P03')                                    ;Extract the galaxy position angle (radians)
 
     EXTAST, imgHead, astr                                               ;Read in the astrometry for the combined image
@@ -20,7 +20,7 @@ PRO S2_USE_MODEL_VALUES, event
     angleWID = WIDGET_INFO(event.top, FIND_BY_UNAME='ROTATION_ANGLE')   ;Get the widget IDs for the rotation information
     xCenWID  = WIDGET_INFO(event.top, FIND_BY_UNAME='ROTATION_X_PIXEL')
     yCenWID  = WIDGET_INFO(event.top, FIND_BY_UNAME='ROTATION_Y_PIXEL')
-
+    
     WIDGET_CONTROL, angleWID, EDITABLE=0, $                             ;Update the text angle widget
       SET_VALUE=SIG_FIG_STRING(-gal_PA*!RADEG, 4), SET_UVALUE=-gal_PA*!RADEG
     WIDGET_CONTROL, xCenWID, EDITABLE=0, $                              ;Update the text X widget
@@ -153,7 +153,8 @@ PRO S2_ROTATE_IMAGES, event
   
   ;**************Finally, recompute a rotated mask**************
   inputDir = groupStruc.analysis_dir + 'S2_Ski_Jump_Fixes' + PATH_SEP() + 'Masking_files' + PATH_SEP()
-  maskImg  =READFITS(inputDir + 'galMask.fits', maskHead)
+;  maskImg  = READFITS(inputDir + 'galMask.fits', maskHead)
+  maskHead = READHEAD(inputDir + 'maskInfo.dat')
   
 
   skynoise = SXPAR(groupStruc.displayHeader, 'SIGMA')       ;Use the 2MASS compute sky noise to set 2.5 sigma threshold

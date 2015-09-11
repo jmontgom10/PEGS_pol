@@ -2,7 +2,7 @@ PRO UNDEFINE, varname
   tempvar = SIZE(TEMPORARY(varname))
 END
 
-PRO UPDATE_PPOL_PATH, analysis_dir
+PRO UPDATE_PPOL_PATH, event, analysis_dir
 
   PPOLparts    = STRSPLIT(analysis_dir, PATH_SEP(), /EXTRACT, COUNT = numParts) ;Break apart the submitted path
   PPOL_summary  = STRJOIN(PPOLparts, PATH_SEP()) + PATH_SEP() + $      ;Build the path to the PPOL group summary 
@@ -66,6 +66,7 @@ PRO UPDATE_PPOL_PATH, analysis_dir
   ENDFOR
   groupStruc.groupImages = new_group_images
 
+  UPDATE_GROUP_SUMMARY, event, groupStruc
   UPDATE_GROUP_SUMMARY, groupStruc, /SAVE
 
 PRINT, 'Done!'

@@ -21,7 +21,7 @@ PRO OPEN_PPOL_PROJECT, event
       RESTORE, group_summary
 
       IF groupStruc.analysis_dir NE analysis_dir THEN BEGIN
-        UPDATE_PPOL_PATH, analysis_dir
+        UPDATE_PPOL_PATH, event, analysis_dir
         groupStruc.analysis_dir = analysis_dir
       ENDIF
       UPDATE_GROUP_SUMMARY, event, groupStruc

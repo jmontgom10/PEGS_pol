@@ -67,7 +67,7 @@ FUNCTION COG_RESIDUALS, p, r0=r0, radii=radii, delMags=delMags, ERR=err
 END
 
 
-FUNCTION GENERATE_COG, image, xStars, yStars, apr, skyradii
+FUNCTION GENERATE_COG, image, xStars, yStars, apr, skyradii, badpix
 
   ;This program uses a least squares minimization method (via the mpfit.pro package)
   ;to determine the best fitting King model parameters
@@ -79,7 +79,7 @@ FUNCTION GENERATE_COG, image, xStars, yStars, apr, skyradii
   phpadu   = 8.21                                                     ;This value can be found on Mimir website
   ronois   = 17.8                                                     ;(elec) This value is from Mimir website
 ;  ronois   = 3.1                                                     ;(ADU) This value is from GPIPS code "S4_PSF_fit"
-  badpix   = [-300L, 6000L]
+;  badpix   = [-300L, 6000L]
   
   APER, image, xStars, yStars, $
     mags, errap, sky, skyerr, phpadu, apr, skyradii, badpix, /SILENT
@@ -110,7 +110,7 @@ FUNCTION GENERATE_COG, image, xStars, yStars, apr, skyradii
   parinfo[3].limits  = [0.0,1.0]
   parinfo[4].limited = [1,0]
   parinfo[4].limits  = [1E-3,10.0]
-
+  
   kingParams  = MPFIT('COG_RESIDUALS', start_params, FUNCTARGS=functargs, $
     PARINF=parinfo, STATUS=status, ERRMSG=errmsg, /QUIET)
 

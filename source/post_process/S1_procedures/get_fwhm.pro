@@ -3,22 +3,22 @@ FUNCTION GET_FWHM, image, xPos, yPos, guessFWHM, satLimit
   x = xPos                                                            ;Alias the xPos vector
   y = yPos                                                            ;Alias the yPos vector
 
-  saturated = TEST_SATURATED(image, xPos, yPos, $                     ;Test for saturated stars
+  saturated = TEST_SATURATED(image, x, y, $                     ;Test for saturated stars
     satLimit, 4*guessFWHM)
   unSatInd = WHERE(~saturated, numStars)                              ;grab the Unsaturated indices
 
   x = x[unSatInd]                                                     ;Remove saturated stars from the list
   y = y[unSatInd]
   
-  crowdedStars = TEST_CROWDED(xPos, yPos, 5*guessFWHM)                ;Find crowded stars
+  crowdedStars = TEST_CROWDED(x, y, 5*guessFWHM)                ;Find crowded stars
   unCrowdInd   = WHERE(~crowdedStars, numUnCrowd)
 
   x = x[unCrowdInd]                                                   ;Remove the crowded stars from the list
   y = y[unCrowdInd]
-
+  
   IF FLOAT(numUnCrowd)/FLOAT(numStars) LT 0.7 THEN BEGIN
     PRINT, "Star field is too crowded." + new_line() $
-      + "Return and raise threshold for detection"
+      + "Return and raise star cutoff"
     RETURN, -1
   ENDIF
   
@@ -29,7 +29,7 @@ FUNCTION GET_FWHM, image, xPos, yPos, guessFWHM, satLimit
     thisX    = x[i]                                                   ;Round star locations to nearest pixel
     thisY    = y[i]                                                   ;Round star locations to nearest pixel
     subArray = image[ROUND(thisX-delXY):ROUND(thisX+delXY), $         ;Grab array centered around the star
-      thisY-delXY:thisY+delXY]
+      ROUND(thisY-delXY):ROUND(thisY+delXY)]
     satInd   = WHERE(subArray GT satLimit, count)                     ;Test for saturated pixels
     IF count GT 0 THEN CONTINUE                                       ;Skip saturated stars
     result     = GAUSS2DFIT(subArray, A, /TILT)                       ;Fit a gaussian
@@ -38,14 +38,15 @@ FUNCTION GET_FWHM, image, xPos, yPos, guessFWHM, satLimit
     IF (roundTest1 GT 0.2) OR (roundTest2 GT 0.2) THEN CONTINUE
     xStar  = A[4]                                                     ;Pick off the fitted star x position
     yStar  = A[5]                                                     ;Pick off the fitted star y position
-    starFitDist = SQRT((thisX - xStar)^2 + (thisY - yStar)^2)         ;Compute offset of fitted gaussian
-    IF starFitDist GT 0.5*guessFWHM THEN $
+    starFitDist = SQRT((delXY - xStar)^2 + (delXY - yStar)^2)         ;Compute offset of fitted gaussian
+    IF starFitDist LT guessFWHM THEN $
       FWHMarr[i] = (2*SQRT(2*ALOG(2)))*SQRT(A[2]*A[3]) ELSE $         ;Compute geometric mean of FWHM for this star
       FWHMarr[i] = !VALUES.F_NAN
   ENDFOR
   
   FWHMarr = FWHMarr[WHERE(FINITE(FWHMarr))]
-  MEANCLIP, FWHMarr, meanFWHM, sigmaFWHM
+;  MEANCLIP, FWHMarr, meanFWHM, sigmaFWHM
+  mfm = JM_MEDIAN_FILTERED_MEAN(FWHMarr)
 
-  RETURN, [meanFWHM, sigmaFWHM]
+  RETURN, [mfm.mean, mfm.std]
 END

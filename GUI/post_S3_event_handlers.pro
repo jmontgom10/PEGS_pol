@@ -117,7 +117,7 @@ PRO S3_START_PROCESSING, event
         RETURN
       ENDIF
       
-      galMask = READFITS(maskDir + 'galMask' + fileSuffix, maskHeader)        ;Read in the mask image
+;      galMask = READFITS(maskDir + 'galMask' + fileSuffix, maskHeader)        ;Read in the mask image
       Iheader = HEADFITS(inputDir + filePrefix + 'I'  + fileSuffix )          ;Read in the intensity header
       Uimg    = READFITS(inputDir + filePrefix + 'U'  + fileSuffix, Uheader)  ;Read in the stokes images
       Qimg    = READFITS(inputDir + filePrefix + 'Q'  + fileSuffix, Qheader)
@@ -129,20 +129,30 @@ PRO S3_START_PROCESSING, event
       nx      = astr.naxis[0]                                         ;Save the image size
       ny      = astr.naxis[1]                                         ;All the images OUGHT to be the same size
       
-      ;Pad the galaxy mask edges
-      rtPad   = nx - 1024                                             ;Compute how much data to pad on the right
-      tpPad   = ny - 1026                                             ;Compute how much data to pad on the left
-      galMask = [galMask, FLTARR(rtPad,1026)]                         ;Pad the right side of the mask
-      galMask = [[galMask], [FLTARR(nx,tpPad)]]                       ;Pad the top side of the mask
+      maskPath = groupStruc.analysis_dir + PATH_SEP() + $
+        'S2_Ski_Jump_Fixes' + PATH_SEP() + $
+        'Masking_files' + PATH_SEP() + $
+        'maskInfo.dat'
+      maskInfo = READHEAD(maskPath)
+      AD2XY, SXPAR(maskInfo, 'RA_MASK'), SXPAR(maskInfo, 'DEC_MASK'), astr, xCen, yCen
+      plateScale = groupStruc.finalPlateScale
+      skynoise   = SXPAR(groupStruc.displayHeader, 'SIGMA')
+      galMask    = GENERATE_MASK(event, nx, ny, xCen, yCen, plateScale, 2.5*skynoise, /ROTATED)
       
-      ;Shift the mask to the correct position
-      galRA   = SXPAR(maskHeader, 'RA_CEN')                           ;Extract the galaxy RA center
-      galDec  = SXPAR(maskHeader, 'DEC_CEN')                          ;Extract the galaxy Dec center
-      AD2XY, galRA, galDec, astr, galX, galY                          ;Compute the galaxy (X,Y) in the intensity image
-      maskCen  = [512,513]                                            ;Galaxy center in the image mask image
-      xShift   = galX - maskCen[0]                                    ;Compute the amount to shift right or left
-      yShift   = galY - maskCen[1]                                    ;Compute the amount to shift up or down
-      galMask  = SHIFT(galMask, xShift, yShift)                       ;Shift the galaxy mask
+;      ;Pad the galaxy mask edges
+;      rtPad   = nx - 1024                                             ;Compute how much data to pad on the right
+;      tpPad   = ny - 1026                                             ;Compute how much data to pad on the left
+;      galMask = [galMask, FLTARR(rtPad,1026)]                         ;Pad the right side of the mask
+;      galMask = [[galMask], [FLTARR(nx,tpPad)]]                       ;Pad the top side of the mask
+;      
+;      ;Shift the mask to the correct position
+;      galRA   = SXPAR(maskHeader, 'RA_CEN')                           ;Extract the galaxy RA center
+;      galDec  = SXPAR(maskHeader, 'DEC_CEN')                          ;Extract the galaxy Dec center
+;      AD2XY, galRA, galDec, astr, galX, galY                          ;Compute the galaxy (X,Y) in the intensity image
+;      maskCen  = [512,513]                                            ;Galaxy center in the image mask image
+;      xShift   = galX - maskCen[0]                                    ;Compute the amount to shift right or left
+;      yShift   = galY - maskCen[1]                                    ;Compute the amount to shift up or down
+;      galMask  = SHIFT(galMask, xShift, yShift)                       ;Shift the galaxy mask
       maskInds = WHERE(~galMask)                                      ;Find all the masked indices (galMask = 1 on galaxy)
       
       ;Now that the mask has been shifted, mask out all U and Q values
@@ -252,34 +262,46 @@ PRO S3_START_PROCESSING, event
       numRebinLevels = numRebinLevels[0]
       min_SNR        = min_SNR[0]
 
-      
-      galMask = READFITS(maskDir + 'galMask' + fileSuffix, maskHeader);Read in the mask image
       Iheader = HEADFITS(inputDir + filePrefix + 'I'  + fileSuffix)   ;Read in the intensity header
       Uimg    = READFITS(inputDir + filePrefix + 'U'  + fileSuffix, Uheader)  ;Read in the stokes images
       Qimg    = READFITS(inputDir + filePrefix + 'Q'  + fileSuffix, Qheader)
       sUimg   = READFITS(inputDir + filePrefix + 'sU' + fileSuffix, sUheader)
       sQimg   = READFITS(inputDir + filePrefix + 'sQ' + fileSuffix, sQheader)
-      
+
       EXTAST, Iheader, astr                                           ;Extract the intensity image astrometry to use for all other images
       
       nx      = astr.naxis[0]                                         ;Save the image size
       ny      = astr.naxis[1]                                         ;All the images OUGHT to be the same size
+
       
+;      galMask = READFITS(maskDir + 'galMask' + fileSuffix, maskHeader);Read in the mask image
+      ;****** THIS NEW METHOD SHOULD BE IMPLEMENTED EVERYWHERE,
+      ;****** AND THE ACTUAL PLATE SCALE SHOULD BE USED.
+      maskPath = groupStruc.analysis_dir + PATH_SEP() + $
+                 'S2_Ski_Jump_Fixes' + PATH_SEP() + $
+                 'Masking_files' + PATH_SEP() + $
+                 'maskInfo.dat'
+      maskInfo = READHEAD(maskPath)
+      AD2XY, SXPAR(maskInfo, 'RA_MASK'), SXPAR(maskInfo, 'DEC_MASK'), astr, xCen, yCen
+      plateScale = groupStruc.finalPlateScale
+      skynoise   = SXPAR(groupStruc.displayHeader, 'SIGMA')
+      galMask    = GENERATE_MASK(event, nx, ny, xCen, yCen, plateScale, 2.5*skynoise, /ROTATED)
+            
       ;Pad the galaxy mask edges
-      maskSZ  = SIZE(galMask, /DIMENSIONS)
+;      maskSZ  = SIZE(galMask, /DIMENSIONS)
 ;      rtPad   = nx - maskSZ[0]                                        ;Compute how much data to pad on the right
 ;      tpPad   = ny - maskSZ[1]                                        ;Compute how much data to pad on the left
 ;      galMask = [galMask, FLTARR(rtPad,maskSZ[1])]                    ;Pad the right side of the mask
 ;      galMask = [[galMask], [FLTARR(nx,tpPad)]]                       ;Pad the top side of the mask
       
       ;Shift the mask to the correct position
-      galRA   = SXPAR(maskHeader, 'RA_CEN')                           ;Extract the galaxy RA center
-      galDec  = SXPAR(maskHeader, 'DEC_CEN')                          ;Extract the galaxy Dec center
-      AD2XY, galRA, galDec, astr, galX, galY                          ;Compute the galaxy (X,Y) in the intensity image
-      maskCen  = 0.5*maskSZ                                           ;Galaxy center in the image mask image
-      xShift   = ROUND(galX - maskCen[0])                             ;Compute the amount to shift right or left
-      yShift   = ROUND(galY - maskCen[1])                             ;Compute the amount to shift up or down
-      galMask  = SMART_SHIFT(galMask, xShift, yShift)                 ;Shift the galaxy mask
+;      galRA   = SXPAR(maskHeader, 'RA_CEN')                           ;Extract the galaxy RA center
+;      galDec  = SXPAR(maskHeader, 'DEC_CEN')                          ;Extract the galaxy Dec center
+;      AD2XY, galRA, galDec, astr, galX, galY                          ;Compute the galaxy (X,Y) in the intensity image
+;      maskCen  = 0.5*maskSZ                                           ;Galaxy center in the image mask image
+;      xShift   = ROUND(galX - maskCen[0])                             ;Compute the amount to shift right or left
+;      yShift   = ROUND(galY - maskCen[1])                             ;Compute the amount to shift up or down
+;      galMask  = SMART_SHIFT(galMask, xShift, yShift)                 ;Shift the galaxy mask
       maskInds = WHERE(~galMask)                                      ;Find all the masked indices (galMask = 1 on galaxy)
 
       ;Now that the mask has been shifted, mask out all U and Q values
