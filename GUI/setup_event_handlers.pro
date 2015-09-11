@@ -144,19 +144,25 @@ PRO OPEN_PPOL_PROJECT, event
       PRINT_TEXT2, event, 'Testing for failed astrometry images'
       FOR i = 0, groupStruc.numGroups - 1 DO BEGIN
         FOR j = 0, groupStruc.groupNumbers[i] - 1 DO BEGIN
-          S3filename = groupStruc.analysis_dir + $                      ;Setup the path to the file to be tested
+          S3fitsFile = groupStruc.analysis_dir + $                      ;Setup the path to the file to be tested
+            'S3_Astrometry' + PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j])
+          S3headFile = groupStruc.analysis_dir + $                      ;Setup the path to the file to be tested
             'S3_Astrometry' + PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j], '.fits') + '.head'
-          S3fileTest = FILE_TEST(S3filename)                            ;Check if that file even exists (passed PPOL step 3)
-          IF S3fileTest THEN BEGIN
-            header  = READHEAD(S3filename)                              ;Check if the existing file has reliable astrometry
+          S3fitsTest = FILE_TEST(S3fitsFile)                            ;Check if that file even exists (passed PPOL step 3)
+          S3headTest = FILE_TEST(S3headFile)
+          IF S3fitsTest THEN BEGIN
+            ;If a *.fits file was found, then use its header and delete the image
+            header  = HEADFITS(S3fitsFile)                             ;Read in the fits header,
+            numStar = SXPAR(header, 'PPOLNSTR')
+            IF numStar LT 3 THEN groupStruc.astroFlags[i,j] = 0         ;Mark all files that fail these tests
+          ENDIF ELSE IF S3headTest THEN BEGIN
+            ;If a *.head file was found, then read it and assess astrometry
+            header  = READHEAD(S3headFile)                              ;Check if the existing file has reliable astrometry
             numStar = SXPAR(header, 'PPOLNSTR')
             IF numStar LT 3 THEN groupStruc.astroFlags[i,j] = 0         ;Mark all files that fail these tests
           ENDIF ELSE groupStruc.astroFlags[i,j] = 0
         ENDFOR
       ENDFOR
-;      numFailed    = TOTAL(groupStruc.astroFlags EQ 0)                  ;Count the number of failed images
-;      groupStruc.numS3failed = LONG(numFailed)                          ;Store the number of failed images
-;      UPDATE_GROUP_SUMMARY, event, groupStruc                           ;Save the failed image number to disk
       
       UPDATE_GROUP_SUMMARY, event, groupStruc
       UPDATE_LOAD_TAB, event, groupStruc

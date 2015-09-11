@@ -181,7 +181,6 @@ PRO S3A_ASTROMETRY_REPAIR, event
   ENDIF
 
   astroStars      = groupStruc.starInfo[astroStarInds]                ;Save the astrometry star information
-;  numFailed       = groupStruc.numS3failed                            ;Grab the total number of failed images
   failedImageInds = WHERE(groupStruc.astroFlags EQ 0, numRemaining)   ;Locate the failed images in the image list
   
   ;groupStruc.astroFlags KEY
@@ -232,6 +231,11 @@ PRO S3A_ASTROMETRY_REPAIR, event
       
       AD2XY, astroStars.RAJ2000, astroStars.DEJ2000, $                  ;Position astrometry stars using astrometry guess
              astrGuess, xGuess, yGuess
+
+      ;Subtrcat 1 to account for indexing differences
+      xGuess -= 1
+      yGuess -= 1
+
       useStar = (xGuess GT 80) AND (xGuess LT (sz[0] - 81)) $           ;Only use stars more than 80 pixels from image edge
         AND (yGuess GT 80) AND (yGuess LT (sz[1] - 81))
       useInds = WHERE(useStar, numUse)                                  ;Get the indices of the usable stars
@@ -241,7 +245,7 @@ PRO S3A_ASTROMETRY_REPAIR, event
       logRange    = FLTARR(2)
       logRange[0] = ALOG(1E-6) > ALOG(skyMode)                          ;Make sure bottom of logRange[0] > 0
       logRange[1] = ALOG(skyMode + 20*skyNoise)                         ;Set upper limit to 10-sigma
-      TVIM, fixedImg, RANGE = skyMode + [-3,+10]*skyNoise               ;Display image  
+      TVIM, fixedImg, RANGE = skyMode + [-3,+10]*skyNoise               ;Display image
       
       XYOUTS, 0.5, 0.96, FILE_BASENAME(groupStruc.groupImages[i,j]), /NORMAL, ALIGNMENT = 0.5
       XYOUTS, 0.5, 0.05, 'Click on highlighted star', /NORMAL, ALIGNMENT = 0.5
@@ -249,84 +253,10 @@ PRO S3A_ASTROMETRY_REPAIR, event
       OPLOT, xGuess, yGuess, PSYM=4, COLOR=red                          ;Overplot the astrometry stars
       OPLOT, [xGuess[useInds[0]]], [yGuess[useInds[0]]], $              ;Mark the brightest usable star
         PSYM=6, COLOR=green, SYMSIZE = 2
-      CURSOR, xStar, yStar, /DATA, /DOWN                                ;Click on the bright star
-  
-      ;Cut out a subarray for a more precise positioning
-      xOff     = (xStar - 19) > 0
-      xRt      = (xOff  + 40) < (sz[0] - 1)
-      yOff     = (yStar - 19) > 0
-      yTop     = (yOff + 40)  < (sz[1] - 1)
-      subArray = fixedImg[xOff:xRt, yOff:yTop]
       
-      done = 0
-      WHILE (done EQ 0) DO BEGIN
-        TVIM, subArray, RANGE = [skyMode-skyNoise, MAX(subArray)]       ;Show the user a zoom-in of the star
-        XYOUTS, 0.5, 0.06, 'Click on the star', /NORMAL, ALIGNMENT = 0.5
-;        OPLOT, [20], [20], PSYM=6, COLOR=green
-        
-        ;Click on the star
-        CURSOR, xStar, yStar, /DATA, /DOWN
-        ;Centroid the star using GCTRD
-        GCNTRD, subArray, xStar, yStar, xcen, ycen, 3.0 ;, /SILENT      ;Compute the centroid about the clicked position
-        OPLOT, [xcen,xcen], [0,40], LINESTYLE = 2, THICK = 2            ;Draw cross-hairs on the estimated star position
-        OPLOT, [0,40], [ycen,ycen], LINESTYLE = 2, THICK = 2
-        
-        POLYFILL, [0,0,1,1,0], [0,0.09,0.09,0,0], /NORMAL, COLOR=!P.BACKGROUND
-        XYOUTS, 0.5, 0.06, 'Left click to accept centroid poisition', /NORMAL, ALIGNMENT = 0.5
-        XYOUTS, 0.5, 0.02, 'Right click to do manual positioning', /NORMAL, ALIGNMENT = 0.5 
-  
-        CURSOR, junk1, junk2, /DOWN
-  
-        IF (!MOUSE.BUTTON EQ 1) THEN done = 1
-        IF (!MOUSE.BUTTON EQ 4) THEN done = 2
-        
-      ENDWHILE
-      
-      IF (done EQ 2) THEN BEGIN                                         ;If the user did not accept, then manually position star
-        done = 0
-        WHILE (done EQ 0) DO BEGIN
-          
-  ;        FOR blinkCount = 0, 4 DO BEGIN
-  ;          TVIM, subArray, RANGE = [skyMode-skyNoise, MAX(subArray)]   ;Show the image
-  ;          XYOUTS, 0.5, 0.95, 'Manually locate this star', /NORMAL, ALIGNMENT = 0.5
-  ;          IF ((blinkCount MOD 2) EQ 0 ) $                             ;Blink a warning message to the user
-  ;            THEN XYOUTS, 0.5, 0.5, 'THIS WILL BE THE FINAL LOCATION', /NORMAL, $
-  ;            ALIGNMENT = 0.5, CHARSIZE = 2, CHARTHICK = 2
-  ;          WAIT, 0.4
-  ;        ENDFOR
-          
-          TVIM, subArray, RANGE = [skyMode-skyNoise, MAX(subArray)]     ;Show the user a zoom-in of the star
-          XYOUTS, 0.5, 0.06, 'Click on the star', /NORMAL, ALIGNMENT = 0.5
-;          OPLOT, [20], [20], PSYM=6, COLOR=green
-          
-          ;Click on the star
-          CURSOR, xcen, ycen, /DATA, /DOWN
-          OPLOT, [xcen,xcen], [0,40], LINESTYLE = 2, THICK = 2          ;Draw cross-hairs on the estimated star position
-          OPLOT, [0,40], [ycen,ycen], LINESTYLE = 2, THICK = 2
-          
-          POLYFILL, [0,0,1,1,0], [0,0.09,0.09,0,0], /NORMAL, COLOR=!P.BACKGROUND
-          XYOUTS, 0.5, 0.06, 'Left click to accept poisition', /NORMAL, ALIGNMENT = 0.5
-          XYOUTS, 0.5, 0.02, 'Right click to try again', /NORMAL, ALIGNMENT = 0.5
-          
-          CURSOR, junk1, junk2, /DOWN
-          
-          IF (!MOUSE.BUTTON EQ 1) THEN done = 1
-  ;        IF (!MOUSE.BUTTON EQ 4) THEN done = 2
-  ;        STOP
-          
-  ;        WIDGET_CONTROL, accept_wid, SENSITIVE=1                       ;Sensitize the accept button
-  ;        WIDGET_CONTROL, reject_wid, SENSITIVE=1                       ;Sensitize the reject button
-  ;        
-  ;        decisionEvent = WIDGET_EVENT([accept_wid, reject_wid])        ;Wait for the user to accept or reject astrometry
-  ;        IF decisionEvent.ID EQ accept_wid THEN done = 1               ;If the user approved, then continue        
-        ENDWHILE
-      ENDIF
-      
-      ;Store the brightest star (x, y) pixel position
-      xStar = xcen + xOff                                               ;Recompute the star x-position
-      yStar = ycen + yOff                                               ;Recompute the star y-position
-      shiftX  = xStar - xGuess[useInds[0]]                              ;Compute x-offset correction
-      shiftY  = yStar - yGuess[useInds[0]]                              ;Compute y-offset correction
+      XYcen   = FIND_CENTROID(fixedImg)                                 ;Find the centroid of the marked star
+      shiftX  = XYcen[0] - xGuess[useInds[0]]                           ;Compute x-offset correction
+      shiftY  = XYcen[1] - yGuess[useInds[0]]                           ;Compute y-offset correction
       xGuess += shiftX                                                  ;Update estimated star x-positions
       yGuess += shiftY                                                  ;Update estimated star y-positions
       useStar = (xGuess GT 20) AND (xGuess LT (sz[0] - 21)) $           ;Update star usage flags
@@ -344,7 +274,7 @@ PRO S3A_ASTROMETRY_REPAIR, event
   
       xStars = xGuess                                                   ;Now that the stars have been "centroided"
       yStars = yGuess                                                   ;they are no longer "guesses"
-  
+      
       FOR k = 0, nStars - 1 DO BEGIN                                    ;Loop through each star and find its gcentrd value
         xOff     = (xGuess[k] - 20) > 0
         xRt      = (xOff  + 40) < (sz[0] - 1)
@@ -359,7 +289,7 @@ PRO S3A_ASTROMETRY_REPAIR, event
         
         IF inArray AND okShape THEN method = 'gaussianGuess' $          ;Define which method should be used first
           ELSE method = 'manualAssist'
-          
+        
         SWITCH method OF
           
           ;This method simply performs a gaussian fit and computes a gaussian centroid at the expected star position.
@@ -370,118 +300,22 @@ PRO S3A_ASTROMETRY_REPAIR, event
             FWHMs[k] = SQRT(ABS(A[2]*A[3]))*2.355                       ;Compute the FWHM for this star
             GCNTRD, subArray, A[4], A[5], xcen, ycen,  FWHMs[k]         ;Centroid this star (using estimated FWHM)
             methodDifference = SQRT((xCen - A[4])^2 + (yCen - A[5])^2)  ;Compute difference between the two locating methods
-            IF (methodDifference LE 1) AND FINITE(methodDifference) $   ;If the two methods have a consensus,
+            IF (methodDifference LE 1E) AND FINITE(methodDifference) $  ;If the two methods have a consensus,
               THEN BREAK                                                ;then we have our answer! (exit SWTICH blocks)
             END
           
-          ;This method cuts out a much smaller subarray centered on the user's click for the star location.
-          ;The smaller array generally has fewer problems fitting a 2D gaussian.
-          ;A gaussian centroid is then performed (also centered about the user's click for the star location)
-          ;using the 2D gaussian fit FWHM for the smoothing kernal.
-          ;The results of these methods are then displayed to the user for approval or rejection.
-          ;An approved fit will BREAK out of the SWITCH.
-          ;If an approved fit is not found in 5 attempts, then the final method is used---SIMPLE USER SPECIFICATION.
+          ;This method will display the subarray to the user and have them help locate the star center
           'manualAssist': BEGIN
-            attemptCount = 0
-            done         = 0
-            WHILE (done EQ 0) DO BEGIN
-              TVIM, ALOG(subArray), RANGE = logRange                    ;Show the image
-              XYOUTS, 0.5, 0.95, 'Manual assist star locator', /NORMAL, ALIGNMENT = 0.5
-              CURSOR, xcen1, ycen1, /DATA, /DOWN                        ;Click on the star
-              
-              xoff1      = xcen1 - 6                                    ;cut out a 13x13 array centered on the star
-              xrt        = xoff1 + 12
-              yoff1      = ycen1 - 6
-              ytop       = yoff1 + 12
-              subArray1  = subArray[xOff1:xRt, yOff1:yTop]
-              result     = GAUSS2DFIT(subArray1, A, /TILT)              ;Gaussian fit the star
-              okShape    = (A[2] GT 0.8) AND (A[2] LT 5) $              ;and if its gaussian width is reasonable (not a hot pixel)
-                AND (A[3] GT 0.8) AND (A[3] LT 5)
-              IF okShape THEN FWHMs[k] = SQRT(ABS(A[2]*A[3]))*2.355 $   ;Compute the FWHM for this star
-                ELSE FWHMs[k] = 3.0                                     ;If shape is bad, then just use 3.0 as FWHM
-              GCNTRD, subArray, xcen1, ycen1, xcen, ycen, FWHMs[k]      ;Centroid the star with a guess at the FWHM
-              IF (xcen GT 0) AND (xcen LT 40) $                         ;Check if the centroid is ON image
-                AND (ycen GT 0) AND (ycen LT 40) THEN BEGIN
-                  
-                OPLOT, [xcen,xcen], [0,40], LINESTYLE = 2, THICK = 2    ;Draw cross-hairs on the estimated star position
-                OPLOT, [0,40], [ycen,ycen], LINESTYLE = 2, THICK = 2
-                
-                POLYFILL, [0,0,1,1,0], [0,0.09,0.09,0,0], /NORMAL, COLOR=!P.BACKGROUND
-                XYOUTS, 0.5, 0.06, 'Left click to accept centroid poisition', /NORMAL, ALIGNMENT = 0.5
-                XYOUTS, 0.5, 0.02, 'Right click to try again', /NORMAL, ALIGNMENT = 0.5
-                
-                CURSOR, junk1, junk2, /DOWN
-                
-                IF (!MOUSE.BUTTON EQ 1) THEN done = 1
-                IF (!MOUSE.BUTTON EQ 4) THEN attemptCount++
-                
-  ;              WIDGET_CONTROL, accept_wid, SENSITIVE=1                 ;Sensitize the accept button
-  ;              WIDGET_CONTROL, reject_wid, SENSITIVE=1                 ;Sensitize the reject button
-  ;              
-  ;              decisionEvent = WIDGET_EVENT([accept_wid, reject_wid])  ;Wait for the user to accept or reject astrometry
-  ;              IF decisionEvent.ID EQ accept_wid THEN BEGIN
-  ;                WIDGET_CONTROL, accept_wid, SENSITIVE=0               ;Desensitize the button
-  ;                WIDGET_CONTROL, reject_wid, SENSITIVE=0               ;Desensitize the button
-  ;                done = 1
-  ;              ENDIF ELSE attemptCount++                               ;Increment the attempt counter if user didn't like fit
-  ;              IF decisionEvent.ID EQ accept_wid THEN BREAK            ;If the user approved, then continue
-  ;              
-  ;              WIDGET_CONTROL, accept_wid, SENSITIVE=0                 ;Desensitize the button
-  ;              WIDGET_CONTROL, reject_wid, SENSITIVE=0                 ;Desensitize the button
-              ENDIF ELSE BEGIN                                          ;If the centroid if OFF image, then...
-                IF attemptCount GT 4 THEN done = 2                      ;If this has been tried 5 times, close the loop
-                attemptCount++                                          ;Increment the attempt counter if centroid is off image
-              ENDELSE
-;              STOP
-            ENDWHILE
-            IF (done EQ 1) THEN BREAK                                     ;Break out of SWITCH if star position was accepted
-            END
-            
-          ;In this method, the user is simply asked to click on the star location.
-          ;The user can also reject accidental clicks.
-          ;The first accepted click-location will be used as the star location.
-          'manualPosition': BEGIN
-            
-  ;          FOR blinkCount = 0, 4 DO BEGIN
-  ;            TVIM, ALOG(subArray), RANGE = logRange                    ;Show the image
-              XYOUTS, 0.5, 0.95, 'Fully manual star locator', /NORMAL, ALIGNMENT = 0.5
-  ;            IF ((blinkCount MOD 2) EQ 0 ) $                           ;Blink a warning message to the user
-  ;              THEN XYOUTS, 0.5, 0.5, 'THIS WILL THE FINAL LOCATION', /NORMAL, $
-  ;              ALIGNMENT = 0.5, CHARSIZE = 2, CHARTHICK = 2
-  ;            WAIT, 0.4
-  ;          ENDFOR
-            done = 0
-            WHILE (done NE 1) DO BEGIN
-              TVIM, ALOG(subArray), RANGE = logRange                    ;Show the image
-              CURSOR, xcen, ycen, /DATA, /DOWN                          ;Click on the star
-              
-              OPLOT, [xcen,xcen], [0,40], LINESTYLE = 2, THICK = 2      ;Draw cross-hairs on the estimated star position
-              OPLOT, [0,40], [ycen,ycen], LINESTYLE = 2, THICK = 2
-              
-              POLYFILL, [0,0,1,1,0], [0,0.09,0.09,0,0], /NORMAL, COLOR=!P.BACKGROUND
-              XYOUTS, 0.5, 0.06, 'Left click to accept centroid poisition', /NORMAL, ALIGNMENT = 0.5
-              XYOUTS, 0.5, 0.02, 'Right click to try again', /NORMAL, ALIGNMENT = 0.5
-  
-              CURSOR, junk1, junk2, /DOWN
-              
-              IF (!MOUSE.BUTTON EQ 1) THEN done = 1
-              IF (!MOUSE.BUTTON EQ 4) THEN done = 2
-              
-  ;            WIDGET_CONTROL, accept_wid, SENSITIVE=1                   ;Sensitize the accept button
-  ;            WIDGET_CONTROL, reject_wid, SENSITIVE=1                   ;Sensitize the reject button
-  ;            
-  ;            decisionEvent = WIDGET_EVENT([accept_wid, reject_wid])    ;Wait for the user to accept or reject positioning
-  ;            IF decisionEvent.ID EQ accept_wid THEN done = 1
-            ENDWHILE
-            
+            XYcen = FIND_CENTROID(subArray, /IS_SUBIMG)
+            xcen  = XYcen[0]
+            ycen  = XYcen[1]
           END
         ENDSWITCH
          
         xStars[k] = xOff + xcen                                         ;Update the star x-position
         yStars[k] = yOff + ycen                                         ;Update the star y-position
-  ;      PRINT, xcen, ycen
       ENDFOR
-  
+      
   ;    mean_FWHM   = (MEDIAN_FILTERED_MEAN(FWHMs))[0]                    ;Compute the mean FWHM
   
       ;We can finally begin to compute the image astrometry using one of the following methods
@@ -758,6 +592,7 @@ PRO S3A_CHECK_ASTROMETRY, event
         S3File = groupStruc.analysis_dir + 'S3_Astrometry' + $ ;Construct the PPOL S3 filename
         PATH_SEP() + FILE_BASENAME(imgFile)
         IF (FILE_INFO(S3File)).exists THEN BEGIN            ;Check if PPOL wrote an astrometry image
+          stop
           header = HEADFITS(S3File)                         ;Read the PPOL astrometry header 
           WRITEHEAD, headFile, header                       ;Write the astrometry header to disk
           FILE_DELETE, S3file                               ;Delete the PPOl astrometry image
@@ -766,6 +601,7 @@ PRO S3A_CHECK_ASTROMETRY, event
       
       ;Read the files from disk
       img    = READFITS(imgFile, /SILENT)
+;      if j eq 2 then stop
       header = READHEAD(headFile)
       sz     = SIZE(img, /DIMENSIONS)
       

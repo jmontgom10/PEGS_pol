@@ -59,6 +59,8 @@ PRO S2_GET_IRAC_PA, event
   nx = sz[0]
   ny = sz[1]
   
+  XYcen = FIND_CENTROID(IRACimg)
+  
   SKY, IRACimg, skymode, skynoise, /SILENT
   imageRange = skymode + [0,+500]*skynoise
   TVIM, ALOG(IRACimg), RANGE = [-5,+5]
