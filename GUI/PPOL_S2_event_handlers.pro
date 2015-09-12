@@ -58,40 +58,44 @@ PRO S2_GET_IRAC_PA, event
   sz = SIZE(IRACimg, /DIMENSIONS)
   nx = sz[0]
   ny = sz[1]
-  
-  XYcen = FIND_CENTROID(IRACimg)
-  
+    
   SKY, IRACimg, skymode, skynoise, /SILENT
   imageRange = skymode + [0,+500]*skynoise
   TVIM, ALOG(IRACimg), RANGE = [-5,+5]
-  
-  ;Click on the galaxy center and HEXTRACT an 8 arcmin region
   XYOUTS, 0.5, 0.95, 'Click on the galaxy center', /NORMAL, ALIGNMENT=0.5
-  CURSOR, Xcen, Ycen, /DATA, /DOWN                        ;Estimage the galaxy center
-  centerImg = IRACimg[(Xcen-50):(Xcen+50), (Ycen-50):(Ycen+50)]
+   
+  XYcen = FIND_CENTROID(IRACimg)
+
   
-  done = 0
-  WHILE ~done DO BEGIN
-    TVIM, ALOG(centerImg);, RANGE=ALOG([1,20])      ;Display the central region
-    ;      stop
-    CURSOR, Xcen1, Ycen1, /DATA, /DOWN                    ;Better estimate the galaxy center
-    GCNTRD, centerImg, Xcen1, Ycen1, Xcen1, Ycen1, 3.0    ;Centroid the flux in that region
-    ;    IF (Xcen NE -1) AND (Ycen NE -1) THEN done = 1  ;Double check that the centroid was successful
-    
-    OPLOT, [Xcen1, Xcen1], [0, 200], $                    ;Mark the estimated galaxy center
-      LINESTYLE = 2, THICK = 2
-    OPLOT, [0, 200], [Ycen1, Ycen1], $
-      LINESTYLE = 2, THICK = 2
-      
-    XYOUTS, 0.5, 0.045, 'Right click to approve center fit', /NORMAL, ALIGNMENT=0.5
-    XYOUTS, 0.5, 0.0125, 'Left click to try again', /NORMAL, ALIGNMENT=0.5
-    
-    CURSOR, junk1, junk2, /DOWN
-    IF !MOUSE.button EQ 4 $                               ;Query user if they're done
-      THEN done = 1                                       ;Either exit or try again
-  ENDWHILE
-  Xgal = Xcen + (Xcen1-50)                               ;Shift the centroided value back to image coordinates
-  Ygal = Ycen + (Ycen1-50)
+;  ;Click on the galaxy center and HEXTRACT an 8 arcmin region
+;  CURSOR, Xcen, Ycen, /DATA, /DOWN                        ;Estimage the galaxy center
+;  centerImg = IRACimg[(Xcen-50):(Xcen+50), (Ycen-50):(Ycen+50)]
+;  
+;  done = 0
+;  WHILE ~done DO BEGIN
+;    TVIM, ALOG(centerImg);, RANGE=ALOG([1,20])      ;Display the central region
+;    ;      stop
+;    CURSOR, Xcen1, Ycen1, /DATA, /DOWN                    ;Better estimate the galaxy center
+;    GCNTRD, centerImg, Xcen1, Ycen1, Xcen1, Ycen1, 3.0    ;Centroid the flux in that region
+;    ;    IF (Xcen NE -1) AND (Ycen NE -1) THEN done = 1  ;Double check that the centroid was successful
+;    
+;    OPLOT, [Xcen1, Xcen1], [0, 200], $                    ;Mark the estimated galaxy center
+;      LINESTYLE = 2, THICK = 2
+;    OPLOT, [0, 200], [Ycen1, Ycen1], $
+;      LINESTYLE = 2, THICK = 2
+;      
+;    XYOUTS, 0.5, 0.045, 'Right click to approve center fit', /NORMAL, ALIGNMENT=0.5
+;    XYOUTS, 0.5, 0.0125, 'Left click to try again', /NORMAL, ALIGNMENT=0.5
+;    
+;    CURSOR, junk1, junk2, /DOWN
+;    IF !MOUSE.button EQ 4 $                               ;Query user if they're done
+;      THEN done = 1                                       ;Either exit or try again
+;  ENDWHILE
+;  Xgal = Xcen + (Xcen1-50)                               ;Shift the centroided value back to image coordinates
+;  Ygal = Ycen + (Ycen1-50)
+  
+  Xgal = XYcen[0]
+  Ygal = XYcen[1]
   
   GETROT, IRACheader, rotang, cdelt                       ;Grab the equatorial rotation of the image
   pl_sc = SQRT(ABS(cdelt[0]*cdelt[1]))*3600E              ;Compute the plate scale
@@ -885,11 +889,11 @@ PRO S2_BUILD_GALAXY_MASK, event
   IF ~FILE_TEST(maskPath, /DIRECTORY) THEN FILE_MKDIR, maskPath       ;Make masking subdirectory if necessary
   
   ;Write the mask files to disk
-  WRITEFITS, maskPath + PATH_SEP() + 'galMask.fits', galMask, maskHeader
-  WRITEFITS, maskPath + PATH_SEP() + 'starMask.fits', mask, maskHeader
+  WRITEFITS, maskPath + PATH_SEP() + 'galMask.fits', galMask
+  WRITEFITS, maskPath + PATH_SEP() + 'starMask.fits', mask
   WRITEFITS, maskPath + PATH_SEP() + 'mask2MASS.fits', mask2MASS
   WRITEHEAD, maskPath + PATH_SEP() + 'maskInfo.dat', maskHeader
-  stop
+
 ;  ;Save all the mask information to a text file
 ;  OPENW, lun, maskPath + PATH_SEP() + 'maskInfo.dat', /GET_LUN        ;Open a file to write masking info
 ;  FOR j = 0, N_ELEMENTS(maskheader) - 1 DO BEGIN                      ;Loop through the header
