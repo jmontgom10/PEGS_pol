@@ -580,29 +580,31 @@ PRO S3A_CHECK_ASTROMETRY, event
       imageProgString = STRING((j+1), groupStruc.groupNumbers[i], FORMAT='("Image ",I2," of ",I2)')
       UPDATE_PROGRESSBAR, imageProgWID, 100*FLOAT(j+1)/groupStruc.groupNumbers[i], DISPLAY_MESSAGE=imageProgString
 
-      imgFile  = groupStruc.groupImages[i,j]                ;Select this image to check
-      headFile = groupStruc.analysis_dir + 'S3_Astrometry' + $ ;Construct the name of the output header file
+      S2file     = groupStruc.analysis_dir + 'S2_Ski_Jump_Fixes' + $ ;Construct the name of the S2 repaired file
+        PATH_SEP() + FILE_BASENAME(imgFile)
+      IF FILE_TEST(S2file) THEN imgFile = S2file $              ;Use the S2 file if one exists
+        ELSE imgFile = groupStruc.groupImages[i,j]              ;otherwise use the BDP file
+      S3headFile = groupStruc.analysis_dir + 'S3_Astrometry' + $;Construct the name of the output header file
         PATH_SEP() + FILE_BASENAME(imgFile, '.fits') + '.head'
       
-      headExists = (FILE_INFO(headFile)).exists
+      headExists = (FILE_INFO(S3headFile)).exists
       astroFlag   = groupStruc.astroFlags[i,j]
       IF (~headExists) AND (astroFlag EQ 3) THEN CONTINUE
       ;If there is no astrometry header file, then check for a PPOL S3 image file
       IF (~headExists) AND (astroFlag NE 3) THEN BEGIN
-        S3File = groupStruc.analysis_dir + 'S3_Astrometry' + $ ;Construct the PPOL S3 filename
+        S3fitsFile = groupStruc.analysis_dir + 'S3_Astrometry' + $ ;Construct the PPOL S3 filename
         PATH_SEP() + FILE_BASENAME(imgFile)
-        IF (FILE_INFO(S3File)).exists THEN BEGIN            ;Check if PPOL wrote an astrometry image
-          stop
-          header = HEADFITS(S3File)                         ;Read the PPOL astrometry header 
-          WRITEHEAD, headFile, header                       ;Write the astrometry header to disk
-          FILE_DELETE, S3file                               ;Delete the PPOl astrometry image
+        IF (FILE_INFO(S3fitsFile)).exists THEN BEGIN            ;Check if PPOL wrote an astrometry image
+          header = HEADFITS(S3fitsFile)                         ;Read the PPOL astrometry header 
+          WRITEHEAD, S3headFile, header                       ;Write the astrometry header to disk
+          FILE_DELETE, S3fitsFile                               ;Delete the PPOl astrometry image
         ENDIF
       ENDIF
       
       ;Read the files from disk
       img    = READFITS(imgFile, /SILENT)
 ;      if j eq 2 then stop
-      header = READHEAD(headFile)
+      header = READHEAD(S3headFile)
       sz     = SIZE(img, /DIMENSIONS)
       
       ;Determine the brightness properties and display image to user
