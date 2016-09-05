@@ -30,6 +30,7 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
   ; read the images to group by HWP first
   ;
   hwp = FLTARR(nfiles)
+  STOP
   FOR i = 0, nfiles-1 do begin
     header = READHEAD(astrometryFiles[i])
     hwp[i] = SXPAR(header, "MB_HWP")

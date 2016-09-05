@@ -1,4 +1,5 @@
 FUNCTION READHEAD, filename
+; A basic function for reading a '*.head' file.
 
   OPENR, lun, filename, /GET_LUN
   line  = ''
