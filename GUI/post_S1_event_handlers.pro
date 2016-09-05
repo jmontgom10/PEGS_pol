@@ -10,7 +10,6 @@ PRO S1_AVERAGE_STOKES_IMAGES, event
 
   ; Grab the object name from the group structure
   object_name = groupStruc.objectName
-
  
   ; Begin by simplifying references to the input/output directories, etc...
   inDir   = groupStruc.analysis_dir + 'S11_Full_Field_Polarimetry' + PATH_SEP()
@@ -425,6 +424,8 @@ PRO S1_FINAL_PHOTOMETRY, event
   IF count EQ 0 THEN STOP                                             ;Check that a match was actually found
   testBand   = TAG_EXIST(groupStruc.starInfo, $                       ;Find the tag containing magnitudes for this band
     STRMID(groupStruc.NIRband,0,1) + 'MAG', INDEX = magTag)
+  testSig    = TAG_EXIST(groupStruc.starInfo, $                       ;Find the tag containing magnitudes for this band
+    'E_' + STRMID(groupStruc.NIRband,0,1) + 'MAG', INDEX = sigMagTag)
   
   intensityFile = FILE_SEARCH(groupStruc.analysis_dir, $              ;Read in the intensity image
     + 'S11B_Combined_Images' + PATH_SEP() + '*I.fits', COUNT = nFiles)
@@ -450,84 +451,18 @@ PRO S1_FINAL_PHOTOMETRY, event
   AD2XY, groupStruc.starInfo.RAJ2000, groupStruc.starinfo.DEJ2000, $  ;Convert 2MASS positions to (x,y) pixel coordinates
     astr, xStars, yStars
   
-  onImageStars  = xStars   GT 20 $
-              AND xStars   LT (sz[0] - 21) $
-              AND yStars   GT 20 $
-              AND yStars   LT (sz[1] - 21)
-  maxCOGmag     = MIN(starMags) + 2E
-  numCandidates = TOTAL(starMags LE maxCOGmag)
-  numCOGstars   = INTARR(numCandidates)
-  minCOGmag     = FLTARR(numCandidates)
-  FOR iStar = 0, numCandidates - 1 DO BEGIN
-    minCOGmag[iStar]   = starMags[iStar]
-    numCOGstars[iStar] = FIX(TOTAL(starMags GE starMags[iStar] $
-                               AND starMags LE starMags[iStar] + 0.75E $
-                               AND starMags LE maxCOGmag $
-                               AND onImageStars))
-  ENDFOR
+  onImageStars  = xStars   GT 50 $
+              AND xStars   LT (sz[0] - 51) $
+              AND yStars   GT 50 $
+              AND yStars   LT (sz[1] - 51)
 
-  ;Grab the magnitude range for the COG stars
-  minCOGmagInd = (WHERE(numCOGstars EQ MAX(numCOGstars)))[0]          ;Get the greatets number (and brightest) stars
-  minCOGmag    = minCOGmag[minCOGmagInd]                              ;Grab the minimum magnitude of that group of stars
-  maxCOGmag    = minCOGmag + 0.75E                                     ;Grab the maximum magnitude of that group of stars
-  
-  ;Grab the stars which fall into that magnitude range
-  COGstarInds = WHERE((starMags GE minCOGmag) $
-                  AND (starMags LE maxCOGmag) $
-                  AND onImageStars, numCOGstars)
-  COGstars    = groupStruc.starInfo[COGstarInds]                      ;Alias the selected COG stars
-  AD2XY, COGstars.RAJ2000, COGstars.DEJ2000, $                        ;Convert 2MASS positions to (x,y) pixel coordinates
-    astr, xCOG, yCOG
-  
-  ;Estimate the FWHM of the selected COG stars
-  ;*************************************
-  ;***** THIS MAY NOT BE NECESSARY *****
-  ;*************************************
-  COG_FWHM = GET_FWHM(intensityImg, xCOG, yCOG, 3.0, badpixCOG[1])    ;Estimate the curve-of-growth FWHM
-  
-  ;Figure out the optimum apertures for estimating the COG
-  largestApr  = 6*COG_FWHM[0]                                         ;Set the largest aperture used for COG measurements
-  skyradii    = [1.2, SQRT(4 + 1.2^2)]*largestApr                     ;Forces Npix(sky) = 4*Npix(star) (largest aperture)
-  rCritical   = MAX(skyradii) + 3*COG_FWHM[0]                         ;Compute grouping radius
-  starradii   = [1.5, 15.0]
-  optimumAprs = GET_OPTIMUM_APERTURES(intensityImg, xCOG, yCOG, $
-    starradii, skyradii, badpixCOG)
-  
-  ;Now actually develop a curve-of-growth from these stars  
-  smallestApr = MIN(optimumAprs)                                      ;Smallest aperture to include in COG
-  largestApr  = 12E                                                   ;Largest aperture to include in COG
-  aprIncr     = (largestApr/smallestApr)^(1.0/11.0)
-  COGapr      = smallestApr*aprIncr^FINDGEN(12)                       ;Generate a list of apertures for COG
-  
-  ;**** GENERATE A CURVE OF GROWTH
-  PRINT_TEXT2, event, 'Generating a King model curve-of-growth'
-  kingParams = GENERATE_COG(intensityImg, xCOG, yCOG, $
-    COGapr, skyradii, badpixCOG)
-    
-  PRINT_TEXT2, event, 'S(r;Ri,A,B,C,D) = B*M(r;A) + (1-B)*[C*G(r;Ri) + (1-C)*H(r;D*Ri)]'
-  PRINT_TEXT2, event, ' '
-  PRINT_TEXT2, event, 'Where'
-  PRINT_TEXT2, event, 'M(r;A)    = [(A-1)/pi]*(1 + r^2)^(-A)          --- Moffat function'
-  PRINT_TEXT2, event, 'G(r;Ri)   = [1/(2*pi*Ri^2)]*Exp[-r^2/(2*Ri^2)] --- Gaussian function'
-  PRINT_TEXT2, event, 'H(r;D*Ri) = [1/(2*pi*(D*Ri)^2)]*Exp[-r/(D*Ri)] --- exponential function'
-  
-  
-  ;Use the "set_sig_figs" functon to display these number strings
-  parameterNames   = ['Ri','A ','B ','C ','D ']
-  parameterStrings = SIG_FIG_STRING(kingParams, [3,6,3,3,3])
-  
-  FOR i = 0, N_ELEMENTS(KingParams) - 1 DO BEGIN
-    parameterString = parameterNames[i] + ' = ' + parameterStrings[i]
-    PRINT_TEXT2, event, parameterString
-  ENDFOR
-  
-  ;*****************************************************************
-  ;********* APERTURE PHOTOMETRY WITH APERTURE CORRECTIONS *********
-  ;*****************************************************************
-  crowdedStars = TEST_CROWDED(xStars, yStars, 1.5*12.0)  
+  ;****************************************************
+  ;********* APERTURE PHOTOMETRY OF ALL STARS *********
+  ;****************************************************
+  crowdedStars = TEST_CROWDED(xStars, yStars, 1.5*20)
   photStarInds = WHERE(groupStruc.photStarFlags AND $
-                      ~crowdedStars AND $
-                      onImageStars, numPhotStars)
+    ~crowdedStars AND $
+    onImageStars, numPhotStars)
   IF numPhotStars GT 0 THEN BEGIN
     photStarInfo = groupStruc.starInfo[photStarInds]
     AD2XY, photStarInfo.RAJ2000, photStarInfo.DEJ2000, $                ;Convert 2MASS positions to (x,y) pixel coordinates
@@ -563,9 +498,9 @@ PRO S1_FINAL_PHOTOMETRY, event
         yStars[j]  = yOff + ycen
         useStar[j] = 1                                                ;Mark this star as one of the stars to use
         failedFit  = 0                                                ;If the fit was successful, then reset the failed fit counter
-        ;          TVIM, subarray
-        ;          OPLOT, [xcen], [ycen], PSYM=6, color=255L
-        ;          stop
+;        TVIM, subarray
+;        OPLOT, [xcen], [ycen], PSYM=6, color=255L
+;        stop
       ENDIF
     ENDIF
     IF ~inArray OR ~okShape $                                         ;If any one of the tests failed,
@@ -585,51 +520,99 @@ PRO S1_FINAL_PHOTOMETRY, event
   ;**** FIND THE OPTIMUM APERTURE FOR EACH STAR ****
   ;**** THIS IS A MYSTERY, BUT I AM GOING TO USE AN UPPER LIMIT OF 30,000 ADU as a bad-pix value ***
   badpix    = [-300L, 30000L]
+
+  COG_FWHM = GET_FWHM(intensityImg, xPhot, yPhot, 3.0, badpix[1])    ;Estimate the curve-of-growth FWHM
+  
+  ;Figure out the optimum apertures for estimating the COG
+  largestApr  = 6*COG_FWHM[0]                                         ;Set the largest aperture used for COG measurements
+  skyradii    = [1.2, SQRT(4 + 1.2^2)]*largestApr                     ;Forces Npix(sky) = 4*Npix(star) (largest aperture)
+  rCritical   = MAX(skyradii) + 3*COG_FWHM[0]                         ;Compute grouping radius
+  starradii   = [1.5, 15.0]
+  
   PRINT_TEXT2, event, 'Computing aperatures at which photometric S/N is greatest for photometry each star'
   optimumAprs = GET_OPTIMUM_APERTURES(intensityImg, xPhot, yPhot, $
     starradii, skyradii, badpix)
-  
+
   ;Cull photometry stars to those with accurately determined "optimum apertures"
-  useInds = WHERE(FINITE(optimumAprs), numUse)                        ;Determine which stars were well fit
+  useInds = WHERE(FINITE(optimumAprs) $             ;Determine which stars were well fit
+  AND (optimumAprs GT 1) $
+  AND (optimumAprs LT 6), numUse)
   IF numUse GT 1 THEN BEGIN
-    photStarInfo = photStarInfo[useInds]                              ;Cull the 2MASS data
-    xPhot        = xPhot[useInds]                                     ;Cull the list to only the well fit stars
+    photStarInfo = photStarInfo[useInds]            ;Cull the 2MASS data
+    xPhot        = xPhot[useInds]                   ;Cull the list to only the well fit stars
     yPhot        = yPhot[useInds]
     optimumAprs  = optimumAprs[useInds]
-  ENDIF ELSE STOP
+  ENDIF ELSE BEGIN
+    PRINT, 'No stars seem to have reasonable PSFs'
+    STOP
+  ENDELSE
+  
+  ;Compute the range of apertures to include in COG analysis
+  minApr  = MIN(optimumAprs)
+  maxApr  = 2.5*MAX(optimumAprs)
+  aprIncr = (maxApr/minApr)^(1.0/11.0)
+  COGapr  = minApr*aprIncr^FINDGEN(12)              ;Generate a list of apertures for COG  
+  
+  ;**** GENERATE A CURVE OF GROWTH ****
+  PRINT_TEXT2, event, 'Generating a King model curve-of-growth'
+  kingParams = GENERATE_COG(intensityImg, xPhot, yPhot, $
+    COGapr, skyradii, badpixCOG)
+    
+  PRINT_TEXT2, event, 'S(r;Ri,A,B,C,D) = B*M(r;A) + (1-B)*[C*G(r;Ri) + (1-C)*H(r;D*Ri)]'
+  PRINT_TEXT2, event, ' '
+  PRINT_TEXT2, event, 'Where'
+  PRINT_TEXT2, event, 'M(r;A)    = [(A-1)/pi]*(1 + r^2)^(-A)          --- Moffat function'
+  PRINT_TEXT2, event, 'G(r;Ri)   = [1/(2*pi*Ri^2)]*Exp[-r^2/(2*Ri^2)] --- Gaussian function'
+  PRINT_TEXT2, event, 'H(r;D*Ri) = [1/(2*pi*(D*Ri)^2)]*Exp[-r/(D*Ri)] --- exponential function'
+  
+  
+  ;Use the "set_sig_figs" functon to display these number strings
+  parameterNames   = ['Ri','A ','B ','C ','D ']
+  parameterStrings = SIG_FIG_STRING(kingParams, [3,6,3,3,3])
+  
+  FOR i = 0, N_ELEMENTS(KingParams) - 1 DO BEGIN
+    parameterString = parameterNames[i] + ' = ' + parameterStrings[i]
+    PRINT_TEXT2, event, parameterString
+  ENDFOR
   
   ;**** COMPUTE APERTURE CORRECTIONS USING THE CURVE OF GROWTH ****
   PRINT_TEXT2, event, 'Computing aperture corrections for each photometry star'
   aprCorrections = GET_APERTURE_CORRECTION(kingParams, optimumAprs)
 
   ;  Use APER to estimate magnitudes and fluxes of all the Mimir stars in the image
-  nPhotStars = N_ELEMENTS(xPhot)
-  instMags   = FLTARR(nPhotStars)
+  nPhotStars  = N_ELEMENTS(xPhot)
+  instMags    = FLTARR(nPhotStars)
+  sigInstMags = FLTARR(nPhotStars)
   FOR i = 0, nPhotStars - 1 DO BEGIN
     APER, intensityImg, xPhot[i], yPhot[i], $
       mag, errap, sky, skyerr, phpadu, optimumAprs[i], skyradii, badpix, /SILENT
-    instMags[i] = mag + aprCorrections[i]
-    ;APER, intensityImg, photMimir.x, photMimir.y, $
-    ;  flux, errap, sky, skyerr, phpadu, apr, skyradii, badpix, /SILENT, /FLUX
+    instMags[i]    = mag + aprCorrections[i]
+    sigInstMags[i] = errap
   ENDFOR
   
-  ;Use NSTAR to simultaneously fit all stars
-  ;  starIDs = INDGEN(N_ELEMENTS(starsMimir))
-  ;  NSTAR, intensityImg, starIDs, starsMimir.x, starsMimir.y, mags, $
-  ;    sky, nGroup, phpadu, ronois, psfFile, DEBUG=0, errMag,  /SILENT
+  magZP      = 25                                                     ;APER and NSTAR use 1ADU/sec = 25 mag
+  magsMimir  = instMags - magZP                                       ;Convert to instrumental magnitudes
+  mags2MASS  = photStarInfo.(magTag)                                  ;Grab the matched 2MASS magnitudes
+  sig2MASS   = photStarInfo.(sigMagTag)                               ;Grab the 2MASS uncertainties
+  delMags    = mags2MASS - magsMimir                                  ;Compute the magnitude differences
+  sigDelMags = SQRT(sig2MASS^2 + sigInstMags^2)                       ;Compute the uncertainty in the magnitude difference
+;  delFlux   = 10.0^(-0.4*delMags)                                     ;Convert differences to flux
+;  MEANCLIP, delFlux, meanRelativeFlux, sigmaFlux, $                   ;Compute mean relative flux
+;    CLIPSIG=3.0
+  MEANCLIP, delMags, meanDelMag, sigmaDelMag, CLIPSIG = 3.0           ;Compute the mean magnitude offset
+  keepInds = WHERE((abs(delMags - meanDelMag)/sigmaDelMag) LE 5.0)    ;Restrict magnitude offset to non-outliers...
   
-  magZP     = 25                                                      ;APER and NSTAR use 1ADU/sec = 25 mag
-  magsMimir = instMags - magZP                                        ;Convert to instrumental magnitudes
-  mags2MASS = photStarInfo.(magTag)                                   ;Grab the matched 2MASS magnitudes
-  delMags   = mags2MASS - magsMimir                                   ;Compute the magnitude differences
-  delFlux   = 10.0^(-0.4*delMags)                                     ;Convert differences to flux
-  MEANCLIP, delFlux, meanRelativeFlux, sigmaFlux, $                   ;Compute mean relative flux
-    CLIPSIG=3.0
-    
-  delMag  = -2.5*ALOG10(meanRelativeFlux)                             ;Convert the mean relative flux to magnitude
+  ;Get rid of all the outlier magnitudes and compute weighted average magnitude offset...
+  delMags     = delMags[keepInds]
+  sigDelMags  = sigDelMags[keepInds]
+  wts         = 1.0/(sigDelMags^2)
+  sigDelMag   = 1.0/TOTAL(wts)
+  delMag      = sigDelMag*TOTAL(wts*delMags)
+  
+  delMag  = meanDelMag                                                ;Use the meanDelMag as the official offset
   magImg  = intensityImg                                              ;Alias the intensity image
-  darkPix = WHERE(intensityImg LT 1, numDark)
-  IF numDark GT 0 THEN magImg[darkPix] = 1                            ;Set bottom threshold
+  darkPix = WHERE(intensityImg LT 1E-6, numDark)
+  IF numDark GT 0 THEN magImg[darkPix] = 1E-6                         ;Set bottom threshold
   magImg = -2.5*ALOG10(magImg) + $                                    ;Compute magnitude/arcsec^2 image
     delMag + 2.5*ALOG10(plateScale^2)
   
@@ -652,13 +635,19 @@ PRO S1_FINAL_PHOTOMETRY, event
   width    = (([0.162, 0.251, 0.262]*1E-6)[bandNumber])[0]            ;Band width (conv. to meters)
   Fnu0     = (([1594E, 1024E, 666.7])[bandNumber])[0]                 ;Zero-point flux (Jy)
   Flambda0 = (([31.29, 11.33, 4.283]*1E-14)[bandNumber])[0]           ;Zero-point flux (W cm-2 um-1)
-  MJyImg   = Fnu0*10.0^(-0.4*(magImg - 2.5*ALOG10(plateScale^2))) * $ ;Convert mag/arcsec^2...
-    ((!RADEG*3600E/plateScale)^2) / 1E6                                ;...into MJy/Sr
-    
-  MJyFile = groupStruc.analysis_dir + 'S11B_Combined_Images' $        ;Define path for save file
-    + PATH_SEP() + 'MJy_Sr.fits'
-  WRITEFITS, MJyFile, MJyImg, header
+;  jyImg    = Fnu0*10.0^(-0.4*(magImg - 2.5*ALOG10(plateScale^2)))     ;Convert to Jy/arcsec^2
+;  MJyImg   = Fnu0*10.0^(-0.4*(magImg - 2.5*ALOG10(plateScale^2))) * $ ;Convert mag/arcsec^2...
+;    ((!RADEG*3600E/plateScale)^2) / 1E6                                ;...into MJy/Sr
   
+  ;Add keywords to make this a ujy/arcsec^2
+  bscale1  = Fnu0*(1e6)*10.0^(-0.4*delMag)*plateScale^(-2)
+  SXADDPAR, header, 'BUNIT', 'uJy arcsec^-2'
+  SXADDPAR, header, 'BSCALE', bscale1
+
+  ujyFile = groupStruc.analysis_dir + 'S11B_Combined_Images' $        ;Define path for save file
+    + PATH_SEP() + 'Hband_I_cal.fits'
+;  WRITEFITS, jyFile, jyImg, header
+  WRITEFITS, ujyFile, intensityImg, header
   
   ;*******************************************************************
   ;******** NOW THAT EVERYTHING HAS BEEN COMPUTED, *******************
@@ -738,15 +727,8 @@ PRO S1_FINAL_PHOTOMETRY, event
   APER, intensityImg, xPhot, yPhot, $                               ;Compute the magnitudes at the COG apertures
     mags, errap, sky, skyerr, phpadu, COGapr, skyradii, badpix, /SILENT  
 
-
-  ;Compute the mean delta-magnitude at that incremental aperture
-  delMags = FLTARR(Napr-1)
-  err     = FLTARR(Napr-1)
-  FOR i = 0, Napr - 2 DO BEGIN
-    MEANCLIP, (mags[i+1,*] - mags[i,*]), meanDelMag, sigMag, CLIPSIG=3.0
-    delMags[i] = meanDelMag
-    err[i]     = sigMag
-  ENDFOR
+  COGphotometry = COG_APER(intensityImg, xPhot, yPhot, $
+    COGapr, skyradii, badpixCOG)
   
   ;Compute the expected delta-magnitude at that incremental aperture
   ;using the fitted King model parameters
@@ -761,26 +743,31 @@ PRO S1_FINAL_PHOTOMETRY, event
   ENDFOR
   
   ;******* I'VE SET THE UNITS TO BE Dmag/Dpixel **********
-
+  ;Compute the magnitude differences used to get the COG
   xCOGdata = 0.5*(COGapr[1:Napr-1] + COGapr[0:Napr-2])
-  yCOGdata = delMags/(COGapr[1:Napr-1] - COGapr[0:Napr-2])
-;  PLOT, COGapr[0:Napr-2], delMags, /NODATA, YRANGE = [-0.8, +0.2], $
-;    XTITLE = "Aperture (pixels)", $
-;    YTITLE = "D mag/D aperture (mag/pixel)"
-  PLOT, xCOGdata, yCOGdata, /NODATA, $
+  yCOGdata = COGphotometry.deltaMags
+  yErr     = COGphotometry.sigDeltaMags
+
+  ;Compute the COG model values
+  xCOGcurve = 0.5*(modelApr[1:nModelApr-1] + modelApr[0:nModelApr-2])
+  yCOGcurve = delMags1/(modelApr[1:nModelApr-1] - modelApr[0:nModelApr-2])
+
+  ;Establish a plotting region
+  PLOT, [min(xCOGcurve), max(xCOGcurve)], $
+    [min([yCOGdata - yErr, yCOGcurve]), max([[yCOGdata + yErr, yCOGcurve]])], $
+    /NODATA, $
     XTITLE = "Aperture (pixels)", $
     YTITLE = "COG (mag/pixel)"
   
-  OPLOT, 0.5*(modelApr[1:nModelApr-1] + modelApr[0:nModelApr-2]), $
-    delMags1/(modelApr[1:nModelApr-1] - modelApr[0:nModelApr-2]), $
-    THICK = 2, COLOR=RGB_TO_DECOMPOSED([0,255,0])
-  
   OPLOT, xCOGdata, yCOGdata, PSYM = 4, THICK = 2
-  ERRPLOT, xCOGdata, yCOGdata + err, yCOGdata - err, THICK = 2 
-;  OPLOTERR, 0.5*(COGapr[1:Napr-1] + COGapr[0:Napr-2]), delMags/(COGapr[1:Napr-1] - COGapr[0:Napr-2]), err, 4
+  ERRPLOT, xCOGdata, yCOGdata + yErr, yCOGdata - yErr, THICK = 2 
 
+  ;Plot the fittted King Model COG curve
+  OPLOT, xCOGcurve, yCOGcurve, $
+    THICK = 2, COLOR=RGB_TO_DECOMPOSED([0,255,0])
+
+  ;Reset plotting values
   !P.MULTI  = 0
   !X.MARGIN = xOriginal
 ;  !Y.MARGIN = yOriginal
-  
 END

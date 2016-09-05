@@ -29,28 +29,28 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
   ;
   ; read the images to group by HWP first
   ;
-  hwp = fltarr(nfiles)
-  for i = 0, nfiles-1 do begin
+  hwp = FLTARR(nfiles)
+  FOR i = 0, nfiles-1 do begin
     header = READHEAD(astrometryFiles[i])
     hwp[i] = SXPAR(header, "MB_HWP")
-  endfor
+  ENDFOR
   ;
   ; how many images of each HWP angle?
   ;
   ind = SORT(hwp)
   hwp_uniq = hwp(ind[uniq(hwp[ind])])
   n_hwp = N_ELEMENTS(hwp_uniq)
-  print, "Found ",n_hwp," different HWP angles: ",hwp_uniq
+  PRINT, "Found ",n_hwp," different HWP angles: ",hwp_uniq
   ;
   ; for each unique HWP angle, collect the dithered images to form superskies
   ;
-  for ihwp = 0, n_hwp-1 do begin
+  FOR ihwp = 0, n_hwp-1 DO BEGIN
     this_hwp = hwp_uniq[ihwp]
-    print, "For HWP angle = ",this_hwp
+    PRINT, "For HWP angle = ",this_hwp
     ;
-    ind = where(HWP eq this_hwp, count)
-    if(count gt 0) then begin
-      print, "  Found ",count," images with this HWP"
+    ind = WHERE(HWP eq this_hwp, count)
+    IF(count GT 0) THEN BEGIN
+      PRINT, "  Found ",count," images with this HWP"
       ;
       hwp_imageFiles = imageFiles[ind]
       hwp_astroFiles = astrometryFiles[ind]
@@ -58,19 +58,19 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
       ra_offs     = INTARR(n_hwp_files)
       dec_offs    = INTARR(n_hwp_files)
       ;
-      for i = 0, n_hwp_files-1 do begin
+      FOR i = 0, n_hwp_files-1 DO BEGIN
         ;Read in the BDP image and the Step3 astrometry header info
-        a      = readfits(hwp_imageFiles[i])
-        header = readhead(hwp_astroFiles[i])
+        a      = READFITS(hwp_imageFiles[i])
+        header = READHEAD(hwp_astroFiles[i])
         ;
-        if(i eq 0) then begin
+        IF(i EQ 0) THEN BEGIN
           ;Initalize arrays to store images and string headers
-          image_mean   = fltarr(n_hwp_files)
-          sample_image = fltarr(ny,ny)
-          big_mask     = fltarr(nx,ny,n_hwp_files)
-          big_image    = fltarr(nx,ny,n_hwp_files)
-          big_header   = strarr(250, n_hwp_files)
-          n_header     = lonarr(n_hwp_files)
+          image_mean   = FLTARR(n_hwp_files)
+          sample_image = FLTARR(ny,ny)
+          big_mask     = FLTARR(nx,ny,n_hwp_files)
+          big_image    = FLTARR(nx,ny,n_hwp_files)
+          big_header   = STRARR(250, n_hwp_files)
+          n_header     = LONARR(n_hwp_files)
         endif
         ;
         ; save header
@@ -80,14 +80,14 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         ;
         ; compute mean of this image
         ;
-        zz = median_filtered_mean(a[50:nx-50:10,50:ny-50:10])
+        zz = MEDIAN_FILTERED_MEAN(a[50:nx-50:10,50:ny-50:10])
         image_mean[i] = zz[0]
-        print, 'Image mean for ',FILE_BASENAME(hwp_imageFiles[i]),' = ',zz[0]
+        PRINT, 'Image mean for ',FILE_BASENAME(hwp_imageFiles[i]),' = ',zz[0]
         ;
         ; mark bad pixels and fix them
         ;
-        median_a = median(a,5)
-        bad_pix  = abs((a - median_a)/zz[1]) gt 4.0
+        median_a = MEDIAN(a,5)
+        bad_pix  = ABS((a - median_a)/zz[1]) gt 4.0
         neighborCount = 0*bad_pix
         xShift        = [1,1,1,0,-1,-1,-1,0]
         yShift        = [1,0,-1,-1,-1,0,1,1]
@@ -101,40 +101,40 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         bad_pix = bad_pix AND (neighborCount LT 4)
         bad_ind  = WHERE(bad_pix, numBad)
         IF numBad GT 0 THEN a[bad_ind] = -1E6
-        a = model_bad_pixels(a)
+        a = MODEL_BAD_PIXELS(a)
         ;
         ; scale image by mean; if non-zero or wierd, then stop
         ;
-        if(FINITE(zz[0]) and zz[0] ne 0.0) then begin
-          a /= float(zz[0])
-        endif else begin
-          print, 'Error -> mean odd. Stopping.'
-          stop
-        endelse
+        IF(FINITE(zz[0]) AND zz[0] NE 0.0) THEN BEGIN
+          a /= FLOAT(zz[0])
+        ENDIF ELSE BEGIN
+          PRINT, 'Error -> mean odd. Stopping.'
+          STOP
+        ENDELSE
         ;
         ; extract astrometry from header
         ;
-        extast, header, astrom
+        EXTAST, header, astrom
         ;
         ; get x, y location of galaxy center in pixels
         ;
-        ad2xy, RA_cen, Dec_cen, astrom, xc, yc
+        AD2XY, RA_cen, Dec_cen, astrom, xc, yc
         ;
         ; determine shift of mask
         ;
         ra_off  = ROUND(xc - 512)
         dec_off = ROUND(yc - 513)
-        print, "mask shift = ",ra_off, dec_off," in RA, Dec directions"
+        PRINT, "mask shift = ",ra_off, dec_off," in RA, Dec directions"
         ra_offs[i]  = ra_off
         dec_offs[i] = dec_off
         ;
         ; Generate a mask for this image using the information from maskInfo.dat
         ;
-        this_mask = GENERATE_MASK(event, 1024, 1026, xc, yc, 0.579, 2.5*skynoise, /STARS)
+        this_mask = GENERATE_MASK(event, 1024, 1026, xc, yc, 0.579, 1.0*skynoise, /STARS)
         ;
         sample_image += (1.0 - this_mask)                   ;Accumulate a count of the number of pixels sampled
         masked_image  = a                                   ;Make a copy of this image
-        masked_image[where(this_mask)] = !VALUES.F_NAN
+        masked_image[WHERE(this_mask)] = !VALUES.F_NAN
         ;
         ;quick debugging examination
         ;        WINDOW, 0, XS=0.5*nx, YS=0.5*ny
@@ -144,53 +144,53 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         ;***************************
         
         subsampled_image = masked_image[50:nx-50:10,50:ny-50:10]
-        ind = WHERE((subsampled_image ne 0.0) and finite(subsampled_image))
+        ind = WHERE((subsampled_image NE 0.0) AND FINITE(subsampled_image))
         subsampled_image = subsampled_image[ind]
-        zz = median_filtered_mean(subsampled_image)
+        zz = MEDIAN_FILTERED_MEAN(subsampled_image)
         
         ;Normalize the masked image by the mean of the image.
         masked_image /= zz[0]
         big_mask[*,*,i] = masked_image[*,*]
         big_image[*,*,i] = a[*,*]
         ;
-      endfor
+      ENDFOR
       ;
       ;Generate the supersky image for this HWP angle
       printString = STRING((ihwp+1),n_hwp, FORMAT='("Generating supersky image for HWP #",I2," of ",I2)')
       PRINT_TEXT2, event, printString
-      mfmImage = jm_median_filtered_mean(big_mask, DIMENSION = 3)
+      mfmImage = JM_MEDIAN_FILTERED_MEAN(big_mask, DIMENSION = 3)
       imageStr = STRING(FORMAT='("HWP ",I2," of ",I2)', (ihwp+1), n_hwp)
       UPDATE_PROGRESSBAR, imageProgressBarWID, $                    ;Update the progress bar to show the latest progress
         100*FLOAT(ihwp+1)/FLOAT(n_hwp), DISPLAY_MESSAGE = imageStr
       ;
-      output = fix_bad_pixels(mfmImage.mean)                        ;Repair any anomalous pixels in the supersky image
+      output = FIX_BAD_PIXELS(mfmImage.mean)                        ;Repair any anomalous pixels in the supersky image
       ;
       ; compute new mean
       ;
-      zz = median_filtered_mean(output[50:nx-50:10,50:ny-50:10])
+      zz = MEDIAN_FILTERED_MEAN(output[50:nx-50:10,50:ny-50:10])
       ;
       ; normalize
       ;
-      output /= float(zz[0])
+      output /= FLOAT(zz[0])
       ;
       ; compute median image
       ;
-      median_output = median(output,9)
+      median_output = MEDIAN(output,9)
       ;
       ; find all pixels in output deviating by more than 4 sigma from median and replace with
       ; their median values
       ;
-      bad_image = abs((output - median_output)/zz[1]) gt 4.0
+      bad_image = ABS((output - median_output)/zz[1]) gt 4.0
       ind_bad = WHERE(bad_image,nbad)
-      if(nbad gt 0) then begin
+      IF (nbad GT 0) THEN BEGIN
         output[ind_bad] = median_output[ind_bad]
-      endif
+      ENDIF
       ;
       ; fill all the unfilled pixels with NANS
       ;
-      print, 'New output mean, dispersion = ', zz[0], zz[1]
+      PRINT, 'New output mean, dispersion = ', zz[0], zz[1]
       NANind = WHERE(sample_image eq 0, numUnknown)
-      print, 'There are ', numUnknown, ' pixels with no unmasked measurements.'
+      PRINT, 'There are ', numUnknown, ' pixels with no unmasked measurements.'
       if numUnknown GT 0 then begin
         output[NANind] = !VALUES.F_NAN                         ;Mark unsampled data with NANs
         deltaX         = MEAN(ra_offs)                         ;Compute the centroided poistion...
@@ -250,7 +250,7 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
       ;Write the supersky image to disk
       out_path = groupStruc.analysis_dir + 'S3_Astrometry' + PATH_SEP() + 'Supersky_flats' + PATH_SEP() + $
         STRING(group_number, 10*this_hwp, FORMAT='("group",I02,"_HWP",I04)') + '_SuperSky.fits'
-      writefits, out_path, output
+      WRITEFITS, out_path, output
       
       ;Display the output image to the user
       titleStr = STRING((ihwp+1), FORMAT='("Supersky for HWP ", I2)')
@@ -273,39 +273,48 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         + PATH_SEP() + new_names
       ;
       ;Loop through each HWP file and subtract the new supersky image from it
-      for i = 0, n_hwp_files-1 do begin
+      FOR i = 0, n_hwp_files-1 DO BEGIN
         ;
-        ; division method:
+        ; (Dan's original) division method:
         ;
         ;big_image[*,*,i] /= output[*,*]
         ;a = reform(big_image[*,*,i])
+        ;
+        ; (Jordan's modified) division method:
+        ; (this method has the advantage of rescaling
+        ; saved image to its proper mean-valu)
+        ;
+        ;tmpArr  = reform(big_image[*,*,i])
+        ;tmpArr /= output[*,*]
+        ;tmpArr *= image_mean[i]
+        ;
         ;writefits, new_paths[i],a
         ;
         ; subtractive method
         ;
-        a  = reform(big_image[*,*,i])
-        a -= output
-        a += 1.0
-        a *= image_mean[i]
+        tmpArr  = REFORM(big_image[*,*,i])
+        tmpArr -= output
+        tmpArr += 1.0
+        tmpArr *= image_mean[i]
         ;
         ; rebuild header
         ;
-        this_header = reform(big_header[0:n_header[i]-1,i])
+        this_header = REFORM(big_header[0:n_header[i]-1,i])
         ;
         ; and add info about supersky by this program
         ;
         SXADDPAR, this_header, "HISTORY", 'Background flattened with SUPERSKY_GROUPS.pro'
         str = '  using sky scaled subtraction on ' + GETENV('COMPUTERNAME') + ' by ' + GETENV('USERNAME') + ' at ' + SYSTIME()
         SXADDPAR, this_header, "HISTORY", str
-        WRITEFITS, new_paths[i], a, this_header
+        WRITEFITS, new_paths[i], tmpArr, this_header
         
-      endfor
-    endif else begin
-      print, "  Found no images with this HWP"
-    endelse
-  endfor
+      ENDFOR
+    ENDIF ELSE BEGIN
+      PRINT, "  Found no images with this HWP"
+    ENDELSE
+  ENDFOR
   ;
-end
+END
 
 PRO S3B_SUBTRACT_SUPERSKY, event
 

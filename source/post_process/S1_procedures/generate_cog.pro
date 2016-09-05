@@ -66,6 +66,62 @@ FUNCTION COG_RESIDUALS, p, r0=r0, radii=radii, delMags=delMags, ERR=err
   RETURN, COGresiduals
 END
 
+FUNCTION COG_APER, image, xStars, yStars, apr, skyradii, badpix
+  ;This program simply retrieves the MEDIAN-FILTERED-MEAN of the aperture
+  ;photometry for the specified values in 'apr'. These filtered values
+  ;are returned to be used in the 'GENERATE_COG' program for actually
+  ;fitting the curve-of-growth.
+  ;DEPENDS ON: APER, MEDIAN_FILTERED_MEAN
+  ;
+  phpadu   = 8.21                                                     ;This value can be found on Mimir website
+  ronois   = 17.8                                                     ;(elec) This value is from Mimir website
+  ;  ronois   = 3.1                                                     ;(ADU) This value is from GPIPS code "S4_PSF_fit"
+  ;  badpix   = [-300L, 6000L]
+  
+  APER, image, xStars, yStars, $
+    mags, errap, sky, skyerr, phpadu, apr, skyradii, badpix, /SILENT
+    
+  ;Compute the magnitude differences and the uncertainty in that value
+  Napr         = N_ELEMENTS(apr)
+  deltaMags    = mags[1:*,*] - mags[0:(Napr - 2),*]
+  sigDeltaMags = SQRT(errap[1:*,*]^2 + errap[0:(Napr - 2),*]^2)
+  
+  ;Compute the median-filtered-mean for each aperture
+  Nstars  = N_ELEMENTS(xStars)
+  medians = FLTARR(Napr - 1)
+  errs    = FLTARR(Napr - 1)
+  FOR i = 0, Napr - 2 DO BEGIN
+    result = MEDIAN_FILTERED_MEAN(REFORM(deltaMags[i,*]))
+    medians[i] = result[0]
+    errs[i]    = result[1]
+  ENDFOR
+  
+  ;Identify outliers in the deltaMag data
+  mfmVals = REBIN(medians, Napr - 1, Nstars, /SAMPLE)
+  mfmSigs = REBIN(errs, Napr - 1, Nstars, /SAMPLE)
+  badInds = WHERE(ABS(deltaMags - mfmVals)/mfmSigs GT 3.0, numBad)
+  IF numBad GT 0 THEN deltaMags[badInds] = !VALUES.F_NAN
+  
+  FOR i = 0, Napr - 2 DO BEGIN
+    goodInds   = WHERE(FINITE(deltaMags[i,*]), numGood)
+    IF numGood GT 0 THEN BEGIN
+      medians[i] = MEDIAN(deltaMags[i,goodInds])
+      errs[i]    = STDDEV(deltaMags[i,goodInds])
+    ENDIF ELSE STOP
+  ENDFOR
+  
+;  ;Compute a weighted mean value for each aperture (ignoring NaN values)
+;  wts              = 1.0/(100*sigDeltaMags)^2
+;  sigMeanDeltaMags = SQRT(TOTAL(FINITE(deltaMags), 2))/(TOTAL(wts, 2))
+;  meanDeltaMags    = sigMeanDeltaMags*TOTAL(wts*deltaMags, 2, /NAN)
+  
+  ;Build the structure to be returned
+  COGphotometry = {$
+    deltaMags:medians, $
+    sigDeltaMags:errs}
+
+  RETURN, COGphotometry
+END
 
 FUNCTION GENERATE_COG, image, xStars, yStars, apr, skyradii, badpix
 
@@ -76,29 +132,17 @@ FUNCTION GENERATE_COG, image, xStars, yStars, apr, skyradii, badpix
   ;DEPENDS ON: APER, MEANCLIP, MPFIT, 
   ;            COG_RESIDUALS, INTEGRATED_KING_MODEL, KING_MODEL
 
-  phpadu   = 8.21                                                     ;This value can be found on Mimir website
-  ronois   = 17.8                                                     ;(elec) This value is from Mimir website
-;  ronois   = 3.1                                                     ;(ADU) This value is from GPIPS code "S4_PSF_fit"
-;  badpix   = [-300L, 6000L]
-  
-  APER, image, xStars, yStars, $
-    mags, errap, sky, skyerr, phpadu, apr, skyradii, badpix, /SILENT
-  
-  Napr    = N_ELEMENTS(apr)
-  delMags = FLTARR(Napr-1)
-  err     = FLTARR(Napr-1)
-  FOR i = 0, Napr - 2 DO BEGIN
-    MEANCLIP, (mags[i+1,*] - mags[i,*]), meanDelMag, sigMag, CLIPSIG=3.0
-    delMags[i] = meanDelMag
-    err[i]     = sigMag
-  ENDFOR
-  
+  COGphotometry = COG_APER(image, xStars, yStars, apr, skyradii, badpix)
+ 
   ;Starting parameters taken from Stetson (1990)
   start_params = [1.5, 1.2, 0.150, 0.5, 0.9]
   numPars      = N_ELEMENTS(start_params)
   parinfo      = REPLICATE({value:0, limited:[0,0], limits:[0.0,0.0], mpside:0, fixed:0}, numPars)
-  functargs    = {r0:apr[0], radii:apr[1:*], delMags:delMags, ERR:err}
-
+  functargs    = {$
+    r0:apr[0],$
+    radii:apr[1:*], $
+    delMags:COGphotometry.deltaMags,$
+    ERR:COGphotometry.sigDeltaMags}
 
   parinfo[0].limited = [1,1]
   parinfo[0].limits  = [0.5, 5.0]

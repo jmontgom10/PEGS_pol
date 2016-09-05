@@ -39,9 +39,9 @@ FUNCTION GET_OPTIMUM_APERTURES, image, xStars, yStars, starradii, skyradii, badp
     skipStar = 0
     minRad   = starradii[0]
     maxRad   = starradii[1]
-    FOR iLoop = 0, 1 DO BEGIN
+
+    FOR iLoop = 0, 2 DO BEGIN
       IF (skipStar EQ 1) THEN CONTINUE
-      
       ;Begin each loop by computing the apertures for which to measure the flux
       deltaRad = ((maxRad - minRad)/11E)
       SNRapr   = minRad + deltaRad*FINDGEN(12)
@@ -54,6 +54,8 @@ FUNCTION GET_OPTIMUM_APERTURES, image, xStars, yStars, starradii, skyradii, badp
       SNRs = flux/errap                                     ;Compute the signal-to-noise
 
 ;      ;Plot for debugging
+;      wdelete, 21
+;      window, 21
 ;      PLOT, SNRapr, SNRs, PSYM = -4, YRANGE=[MIN(SNRs), MAX(SNRs)]
 ;      stop
       
@@ -62,12 +64,19 @@ FUNCTION GET_OPTIMUM_APERTURES, image, xStars, yStars, starradii, skyradii, badp
       maxSNRind = (WHERE(SNRs EQ MAX(SNRs), numMax))[0]
       IF (numGood GT 0) AND $
          (numMax LE 2) AND $
-         (maxSNRind GE 1) THEN BEGIN                        ;If the maximum SNR was successfully identified...
+         (maxSNRind EQ 11) THEN BEGIN                       ;If the maximum SNR is at the largest APR
+        minRad    = SNRapr[maxSNRind]                       ;Compute the bottom of the new apr range
+        maxRad    = 2*maxRad                                ;and the top too
+        IF maxRad GE 40 THEN skipStar = 1                   ;Skip stars with aperature greater than 40 pixels
+      ENDIF ELSE IF (numGood GT 0) AND $
+        (numMax LE 2) AND $
+        (maxSNRind GE 1) THEN BEGIN                         ;If the maximum SNR was successfully identified...
         minRad    = SNRapr[maxSNRind-1]                     ;Compute the bottom of the new apr range
         maxRad    = SNRapr[maxSNRind+1]                     ;and the top too
-        deltaRad  = (maxRad - minRad)/11E                   ;Use this to compute the new deltaRad
+        IF (maxRad - minRad) LE 3.0 THEN done = 1           ;Declare success if we've found max within 3 pixels
       ENDIF ELSE BEGIN
         ;I should recompute minRad and maxRad to be the smallest and greatest good apertures, respectively...
+        stop
 ;        minRad = SNRapr[MIN(goodRad)]
 ;        maxRad = SNRapr[MAX(goodRad)]
         optimumAprs[i] = !VALUES.F_NAN
