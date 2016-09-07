@@ -1,5 +1,7 @@
 FUNCTION INPAINT_NANS, img, SMOOTHING_RESOLUTION=smoothing_resolution, SMOOTHING_KERNEL = smoothing_kernel, COUNT=count
-
+  ;
+  ;This function fills in NaN valued pixels using information from surrounding pixels.
+  ;
   IF (N_ELEMENTS(smoothing_resolution) NE 0) AND (N_ELEMENTS(smoothing_kernel) NE 0) THEN STOP
   IF (N_ELEMENTS(smoothing_resolution) EQ 0) AND $
      (N_ELEMENTS(smoothing_kernel) EQ 0) THEN smoothing_resolution = 10
@@ -36,19 +38,35 @@ FUNCTION INPAINT_NANS, img, SMOOTHING_RESOLUTION=smoothing_resolution, SMOOTHING
     img1 = img                                                ;Alias the input image
     med  = MEDIAN(img1)                                       ;Grab the median of the image
     img[badPix] = med                                         ;First pass should fill with median value
-
+    ;
     ;Perform a second "first pass" filling in the bad pixels
+    ;
     img1          = CONVOL(img, bigKernel, /EDGE_TRUNCATE)    ;Use convolution to fill in space
     img1[goodPix] = img[goodPix]                              ;Replace original values in the rest of the image
-    
+    ;
     ;Loop through iterations until converging on a solution
-    diff  = TOTAL(ABS(img[badPix] - img1[badPix]))/numBad
-    count = 0
+    ;
+    diff   = ABS(img[badPix] - img1[badPix])
+    maxInd = WHERE(diff EQ MAX(diff), numMax)
+    IF numMax GT 0 THEN BEGIN
+      diff = (diff[maxInd]/(ABS(img[badPix]))[maxInd])[0]
+    ENDIF ELSE BEGIN
+      PRINT, 'Could not find pixel with maximum difference. Stopping."
+      STOP
+    ENDELSE
+    count  = 0
     WHILE diff GT 5E-5 DO BEGIN
-      img2          = CONVOL(img1,kernel, /EDGE_TRUNCATE)
+      img2          = CONVOL(img1, kernel, /EDGE_TRUNCATE)
       img2[goodPix] = img[goodPix]
-      diff          = TOTAL(ABS(img2[badPix] - img1[badPix]))/numBad
-      img1          = img2
+      diff          = ABS(img1[badPix] - img2[badPix])
+      maxInd        = WHERE(diff EQ MAX(diff), numMax)
+      IF numMax GT 0 THEN BEGIN
+        diff = (diff[maxInd]/(ABS(img[badPix]))[maxInd])[0]
+      ENDIF ELSE BEGIN
+        PRINT, 'Could not find pixel with maximum difference. Stopping."
+        STOP
+      ENDELSE
+      img1 = img2
       count++
       IF count GT 10000 THEN diff = 1E-5
     ENDWHILE

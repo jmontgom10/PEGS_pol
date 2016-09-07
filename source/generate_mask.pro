@@ -110,7 +110,7 @@ IF stars THEN BEGIN
     IF (xMaskStars[i] GT 10) AND (xMaskStars[i] LT naxis1 - 10) AND $
       (yMaskStars[i] GT 10) AND (yMaskStars[i] LT naxis2 - 10) THEN BEGIN
       ;Compute a radius to mask bassed on the brightness of the star
-      maskRad  = 10E^(0.80E*MIN(magMaskStars)/magMaskStars[i])*starWid*pl_sc_convert
+      maskRad  = 10E^(0.30E*MIN(magMaskStars)/magMaskStars[i])*starWid*pl_sc_convert
       starMask = SQRT((xx - xMaskStars[i])^2 + $            ;Find pixels near this star
         (yy - yMaskStars[i])^2) LT maskRad
       mask = mask OR starMask                               ;Add those pixels to the mask

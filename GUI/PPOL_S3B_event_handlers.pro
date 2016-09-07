@@ -30,7 +30,6 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
   ; read the images to group by HWP first
   ;
   hwp = FLTARR(nfiles)
-  STOP
   FOR i = 0, nfiles-1 do begin
     header = READHEAD(astrometryFiles[i])
     hwp[i] = SXPAR(header, "MB_HWP")
@@ -51,7 +50,7 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
     ;
     ind = WHERE(HWP eq this_hwp, count)
     IF(count GT 0) THEN BEGIN
-      PRINT, "  Found ",count," images with this HWP"
+      PRINT, "  Found ", count, " images with this HWP"
       ;
       hwp_imageFiles = imageFiles[ind]
       hwp_astroFiles = astrometryFiles[ind]
@@ -61,7 +60,7 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
       ;
       FOR i = 0, n_hwp_files-1 DO BEGIN
         ;Read in the BDP image and the Step3 astrometry header info
-        a      = READFITS(hwp_imageFiles[i])
+        tmpArr = READFITS(hwp_imageFiles[i])
         header = READHEAD(hwp_astroFiles[i])
         ;
         IF(i EQ 0) THEN BEGIN
@@ -72,7 +71,7 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
           big_image    = FLTARR(nx,ny,n_hwp_files)
           big_header   = STRARR(250, n_hwp_files)
           n_header     = LONARR(n_hwp_files)
-        endif
+        ENDIF
         ;
         ; save header
         ;
@@ -81,35 +80,35 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         ;
         ; compute mean of this image
         ;
-        zz = MEDIAN_FILTERED_MEAN(a[50:nx-50:10,50:ny-50:10])
+        zz = MEDIAN_FILTERED_MEAN(tmpArr[50:nx-50:10,50:ny-50:10])
         image_mean[i] = zz[0]
         PRINT, 'Image mean for ',FILE_BASENAME(hwp_imageFiles[i]),' = ',zz[0]
         ;
         ; mark bad pixels and fix them
         ;
-        median_a = MEDIAN(a,5)
-        bad_pix  = ABS((a - median_a)/zz[1]) gt 4.0
+        median_tmpArr = MEDIAN(tmpArr,5)
+        bad_pix       = ABS((tmpArr- median_tmpArr)/zz[1]) gt 4.0
         neighborCount = 0*bad_pix
-        xShift        = [1,1,1,0,-1,-1,-1,0]
-        yShift        = [1,0,-1,-1,-1,0,1,1]
-        FOR iShift = 0, 7 DO BEGIN
-          neighborCount += SHIFT(bad_pix, xShift[iShift], yShift[iShift])
+        FOR dx = -1, 1 DO BEGIN
+          FOR dy = -1, 1 DO BEGIN
+            neighborCount += SHIFT(bad_pix, dx, dy)
+          ENDFOR
         ENDFOR
-
+        ;
         ;This line saves maps of the bad pixels clusters from clusters of 1 to 8
         ;FOR iNeighbor = 1, 8 DO WRITEFITS, STRTRIM(iNeighbor, 2)+'neighbors.fits', (neighborCount LT iNeighbor)
-
+        ;
         bad_pix = bad_pix AND (neighborCount LT 4)
         bad_ind  = WHERE(bad_pix, numBad)
-        IF numBad GT 0 THEN a[bad_ind] = -1E6
-        a = MODEL_BAD_PIXELS(a)
+        IF numBad GT 0 THEN tmpArr[bad_ind] = -1E6
+        tmpArr = MODEL_BAD_PIXELS(tmpArr)
         ;
-        ; scale image by mean; if non-zero or wierd, then stop
+        ; normalize image by mean; if non-zero or wierd, then stop
         ;
         IF(FINITE(zz[0]) AND zz[0] NE 0.0) THEN BEGIN
-          a /= FLOAT(zz[0])
+          tmpArr /= FLOAT(zz[0])
         ENDIF ELSE BEGIN
-          PRINT, 'Error -> mean odd. Stopping.'
+          PRINT, 'Error -> mean is strange. Stopping.'
           STOP
         ENDELSE
         ;
@@ -125,17 +124,17 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         ;
         ra_off  = ROUND(xc - 512)
         dec_off = ROUND(yc - 513)
-        PRINT, "mask shift = ",ra_off, dec_off," in RA, Dec directions"
+        PRINT, "mask shift = ", ra_off, ",", dec_off," in RA, Dec directions"
         ra_offs[i]  = ra_off
         dec_offs[i] = dec_off
         ;
         ; Generate a mask for this image using the information from maskInfo.dat
         ;
-        this_mask = GENERATE_MASK(event, 1024, 1026, xc, yc, 0.579, 1.0*skynoise, /STARS)
+        this_mask = GENERATE_MASK(event, 1024, 1026, xc, yc, 0.579, 5.0*skynoise, /STARS)
         ;
         sample_image += (1.0 - this_mask)                   ;Accumulate a count of the number of pixels sampled
-        masked_image  = a                                   ;Make a copy of this image
-        masked_image[WHERE(this_mask)] = !VALUES.F_NAN
+        masked_image  = tmpArr                              ;Make a copy of this image
+        masked_image[WHERE(this_mask)] = !VALUES.F_NAN      ;Fill in masked pixels with NaN
         ;
         ;quick debugging examination
         ;        WINDOW, 0, XS=0.5*nx, YS=0.5*ny
@@ -143,16 +142,17 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         ;        TV, REBIN(BYTSCL(masked_image, MIN=skymode-skynoise, MAX=skymode+3*skynoise), 0.5*nx, 0.5*ny)
         ;        stop
         ;***************************
-        
+        ;
         subsampled_image = masked_image[50:nx-50:10,50:ny-50:10]
-        ind = WHERE((subsampled_image NE 0.0) AND FINITE(subsampled_image))
+        ind              = WHERE((subsampled_image NE 0.0) AND FINITE(subsampled_image))
         subsampled_image = subsampled_image[ind]
-        zz = MEDIAN_FILTERED_MEAN(subsampled_image)
-        
+        zz               = MEDIAN_FILTERED_MEAN(subsampled_image)
+        ;
         ;Normalize the masked image by the mean of the image.
-        masked_image /= zz[0]
-        big_mask[*,*,i] = masked_image[*,*]
-        big_image[*,*,i] = a[*,*]
+        ;
+        masked_image    /= zz[0]
+        big_mask[*,*,i]  = masked_image[*,*]
+        big_image[*,*,i] = tmpArr[*,*]
         ;
       ENDFOR
       ;
@@ -181,8 +181,8 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
       ; find all pixels in output deviating by more than 4 sigma from median and replace with
       ; their median values
       ;
-      bad_image = ABS((output - median_output)/zz[1]) gt 4.0
-      ind_bad = WHERE(bad_image,nbad)
+      bad_image = ABS((output - median_output)/zz[1]) GT 4.0
+      ind_bad = WHERE(bad_image, nbad)
       IF (nbad GT 0) THEN BEGIN
         output[ind_bad] = median_output[ind_bad]
       ENDIF
@@ -190,7 +190,7 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
       ; fill all the unfilled pixels with NANS
       ;
       PRINT, 'New output mean, dispersion = ', zz[0], zz[1]
-      NANind = WHERE(sample_image eq 0, numUnknown)
+      NANind = WHERE(sample_image EQ 0, numUnknown)
       PRINT, 'There are ', numUnknown, ' pixels with no unmasked measurements.'
       if numUnknown GT 0 then begin
         output[NANind] = !VALUES.F_NAN                         ;Mark unsampled data with NANs
@@ -200,51 +200,74 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         rotSample      = ROT(sample_image, angle, 1E, $        ;Rotate the sample image
           (512 + deltaX), (513 + deltaY), CUBIC = -0.5, /PIVOT)
         minorAxis            = FIX(TOTAL((rotSample LT 1E)[(512 + deltaX),*]));Estimate the minor axis of the unsampled region
-        smoothing_resolution = FIX(minorAxis/3)
+        smoothing_resolution = FIX(minorAxis/3) < 20
         ;
-        ; find and fill all the NAN values within 3*smoothing_resolution of the edge
+        ; find and fill funky values
         ;
-        NANxy         = ARRAY_INDICES(output, NANind)
-        pixInBorder   = (NANxy[0,*] LT 3*smoothing_resolution) OR $
-                        (NANxy[0,*] GT nx - 3*smoothing_resolution - 1) OR $
-                        (NANxy[1,*] LT 3*smoothing_resolution) OR $
-                        (NANxy[1,*] GT ny - 3*smoothing_resolution - 1)
-        borderNANinds = WHERE(pixInBorder, numInBorder)
-        IF numInBorder GT 0 THEN BEGIN
-          PRINT_TEXT2, event, 'Filling the NAN pixels near the image edges.'
-          FOR fillInd = 0, numInBorder - 1 DO BEGIN
-            thisInd = NANxy[*,borderNANinds[fillInd]]
-            ;Make sure we've grabbed a NAN value
-            IF FINITE(output[thisInd[0],thisInd[1]]) THEN STOP
-
-            ;Search for a large enough box to fill this pixel with a median
-            delta = 2
-            done  = 0
-            WHILE ~done DO BEGIN
-              lf = (thisInd[0] - delta) & rt = (thisInd[0] + delta)
-              bt = (thisInd[1] - delta) & tp = (thisInd[1] + delta)
-              nearbyMed = MEDIAN(output[lf:rt,lf:rt], /EVEN)
-              IF ~FINITE(nearbyMed) THEN delta++ ELSE BEGIN
-                output[thisInd[0],thisInd[1]] = nearbyMed
-                done = 1
-              ENDELSE
-              IF delta GT 10 THEN BEGIN
-                output[thisInd[0],thisInd[1]] = 1.0
-                done = 1
-              ENDIF
-            ENDWHILE
-          ENDFOR
-        ENDIF
+        badPix     = ABS(output - 1.0) GT 0.15
+        badInds    = WHERE(badPix, numBad)
+        badXY      = ARRAY_INDICES(output, badInds)
+        PRINT_TEXT2, event, 'Filling bad pixels near the image edges.'
         ;
-        ; find all the NAN values and fill them in using a numerical "heat transfer" solution
+        ;Loop through all the border inds
+        ;
+        FOR fillInd = 0, numBad - 1 DO BEGIN
+          ;Grab the XY indices for this particular pixel
+          thisInd = badXY[*,fillInd]
+          thisX   = thisInd[0]
+          thisY   = thisInd[1]
+          ;
+          ;Search for a large enough box to fill this pixel with a median
+          ;
+          delta = 2
+          done  = 0
+          WHILE ~done DO BEGIN
+            ;Compute an acceptable set of box boundaries
+            lf = (thisX - delta)
+            IF lf LT 0 THEN BEGIN
+              lf = 0
+            ENDIF
+            rt = lf + 2*delta
+            IF rt GT (nx - 1) THEN BEGIN
+              rt = nx  - 1
+              lf = rt - 2*delta
+            ENDIF
+            bt = (thisY - delta)
+            IF bt LT 0 THEN BEGIN
+              bt = 0
+            ENDIF
+            tp = bt + 2*delta
+            IF tp GT (ny - 1) THEN BEGIN
+              tp = ny - 1
+              bt = tp - 2*delta
+            ENDIF
+            ;
+            ;Compute the median of this box (hopefully filtering out bad values
+            ;
+            nearbyMed   = MEDIAN(output[lf:rt,bt:tp], /EVEN)
+            IF (ABS(nearbyMed - 1.0) GT 0.15) THEN delta++ ELSE BEGIN
+              output[thisX,thisY] = nearbyMed
+              done = 1
+            ENDELSE
+            IF delta GT 10 THEN BEGIN
+              IF nearbyMed GT (1.0 + 0.15) THEN thisVal = (1.0 + 0.15)
+              IF nearbyMED LT (1.0 - 0.15) THEN thisVal = (1.0 - 0.15)
+              output[thisX,thisY] = thisVal
+              done = 1
+            ENDIF
+          ENDWHILE
+        ENDFOR
+        ;
+        ;Find all the NAN values and fill them in using a numerical "heat transfer" solution
         ;
         PRINT_TEXT2, event, 'Applying numerical heat transfer method to fill in unsampled pixels...'
         PRINT_TEXT2, event, '...using smoothing kernel width ' + STRTRIM(smoothing_resolution, 2)
         output = INPAINT_NANS(output, SMOOTHING_RESOLUTION = smoothing_resolution, COUNT=count)
         PRINT_TEXT2, event, 'Numerical inpainting completed in ' + STRTRIM(count, 2) + ' iterations.'
-      endif
+      ENDIF
       ;
       ;Estimate the supersky noise for use in the LEE-FILTER
+      ;
       SKY, output, flatMode, flatNoise, /SILENT
       output = LEEFILT(output, 3, 1.5*flatnoise, /EXACT)
       ;
@@ -279,11 +302,11 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         ; (Dan's original) division method:
         ;
         ;big_image[*,*,i] /= output[*,*]
-        ;a = reform(big_image[*,*,i])
+        ;tmpArr            = reform(big_image[*,*,i])
         ;
         ; (Jordan's modified) division method:
         ; (this method has the advantage of rescaling
-        ; saved image to its proper mean-valu)
+        ; saved image to its proper mean-value)
         ;
         ;tmpArr  = reform(big_image[*,*,i])
         ;tmpArr /= output[*,*]
@@ -305,10 +328,10 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
         ; and add info about supersky by this program
         ;
         SXADDPAR, this_header, "HISTORY", 'Background flattened with SUPERSKY_GROUPS.pro'
-        str = '  using sky scaled subtraction on ' + GETENV('COMPUTERNAME') + ' by ' + GETENV('USERNAME') + ' at ' + SYSTIME()
-        SXADDPAR, this_header, "HISTORY", str
+        histStr = '  using sky scaled subtraction on ' + GETENV('COMPUTERNAME') + ' by ' + GETENV('USERNAME') + ' at ' + SYSTIME()
+        SXADDPAR, this_header, "HISTORY", histStr
         WRITEFITS, new_paths[i], tmpArr, this_header
-        
+        ;
       ENDFOR
     ENDIF ELSE BEGIN
       PRINT, "  Found no images with this HWP"
@@ -366,7 +389,6 @@ PRO S3B_SUBTRACT_SUPERSKY, event
       groupS3files  = S3A_path + PATH_SEP() + $
         FILE_BASENAME(groupBDPfiles, '.fits') + '.head'
       FOR j = 0, numGood - 1 DO BEGIN
-        IF groupBDPfiles[j] EQ 'P:\NGC891_H-POL_201110\BDP_reduced\20111008.2450_LDFC.fits' THEN STOP
         S2file = groupStruc.analysis_dir + $
           'S2_Ski_Jump_Fixes' + PATH_SEP() + FILE_BASENAME(groupBDPfiles[j])
         IF FILE_TEST(S2file) THEN groupBDPfiles[j] = S2file

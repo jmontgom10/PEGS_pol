@@ -16,7 +16,7 @@ PRO UPDATE_PPOL_PATH, event, analysis_dir
     ;
     BDPdir    = STRJOIN(PPOLparts[0:numParts-2], PATH_SEP()) $    ;Attempt to rebuild the BDP directory based on that information.
       + PATH_SEP() + 'BDP_reduced' + PATH_SEP()
-      
+
     IF ~FILE_TEST(BDPdir, /DIRECTORY) THEN BEGIN
       BDPdir = DIALOG_PICKFILE(/DIRECTORY, TITLE = 'Select BDP data for ' + analysis_dir)
     ENDIF
@@ -29,7 +29,7 @@ PRO UPDATE_PPOL_PATH, event, analysis_dir
       PRINT, 'Fixing paths for group ' + (*G_PTR).group_names[j]
       FOR k = 0, 511 DO BEGIN
         IF STRLEN(new_group_images[j,k]) GT 0 THEN BEGIN
-          temp_image   = BDPdir + FILE_BASENAME(new_group_images[j,k])
+          temp_image            = BDPdir + FILE_BASENAME(new_group_images[j,k])
           new_group_images[j,k] = temp_image
         ENDIF
       ENDFOR
