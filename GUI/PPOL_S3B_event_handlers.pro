@@ -46,6 +46,15 @@ PRO SUPERSKY_GROUP, event, imageFiles, astrometryFiles, RA_cen, DEC_cen, $
   ;
   FOR ihwp = 0, n_hwp-1 DO BEGIN
     this_hwp = hwp_uniq[ihwp]
+;    ;
+;    ; Test if we want to do the cluster of files
+;    ;
+;    testStr  = STRING(group_number, 10*this_hwp, FORMAT='("group",I02,"_HWP",I04)')
+;    stopStr = STRING(2, 1575, FORMAT='("group",I02,"_HWP",I04)')
+;    IF testStr NE stopStr THEN CONTINUE
+;    ;
+;    ;
+;    ;
     PRINT, "For HWP angle = ",this_hwp
     ;
     ind = WHERE(HWP eq this_hwp, count)
@@ -391,9 +400,25 @@ PRO S3B_SUBTRACT_SUPERSKY, event
       FOR j = 0, numGood - 1 DO BEGIN
         S2file = groupStruc.analysis_dir + $
           'S2_Ski_Jump_Fixes' + PATH_SEP() + FILE_BASENAME(groupBDPfiles[j])
-        IF FILE_TEST(S2file) THEN groupBDPfiles[j] = S2file
+        ;
+        ; The old way was to simply pass the S2 file for use,
+        ; but this produces suprious results.
+        ; 
+        ;IF FILE_TEST(S2file) THEN groupBDPfiles[j] = S2file
+        ;
+        ; The new way is to simply SKIP any files with ski-jumps
+        ;
+        IF FILE_TEST(S2file) THEN groupBDPfiles[j] = 'bad_data'
       ENDFOR
     ENDIF
+    ;
+    ; Now remove any S2 files
+    ;
+    goodFiles = WHERE(groupBDPfiles NE 'bad_data', numGood)
+    IF numGood GT 0 THEN BEGIN
+      groupBDPfiles = groupBDPfiles[goodFiles]
+      groupS3files  = groupS3files[goodFiles]
+    ENDIF ELSE CONTINUE
 
     ;Apply the supersky procedure to THIS group
     SUPERSKY_GROUP, event, groupBDPfiles, groupS3files, RA_cen, Dec_cen, $

@@ -6,7 +6,12 @@ FUNCTION FIT_GALAXY_MODELS, event, image, x0, y0, ellipseAxes, PAguess, skynoise
   IF (N_ELEMENTS(FIX_PA) NE 0) THEN BEGIN
     IF ~((FIX_PA EQ 1) XOR (FIX_PA EQ 0)) THEN MESSAGE, 'FIX_PA does not accept values', LEVEL=-1
   ENDIF
-    
+  
+  ;Make sure the PA guess is between -90 and +90
+  IF PAguess LT -90 THEN PAguess += 180
+  IF PAguess GT +90 THEN PAguess -= 180
+
+  ;Setup the location values of all the pixels in the image  
   xn = n_elements(image[*,0])
   yn = n_elements(image[0,*])
   xr = dindgen(xn)
@@ -200,6 +205,20 @@ FUNCTION FIT_GALAXY_MODELS, event, image, x0, y0, ellipseAxes, PAguess, skynoise
                       0.5, $                                ;p(9) is the (1/n) factor in the Sersic profile for the disk
                       1E, $                                 ;p(10) is the background
                      [1E3,PSFparams[1:2],0]]                ;Append TWO_MASS_SERSIC_PSF parameters
+;
+;  ;Ensure that the values are between the limits
+;  forceUpInds = WHERE(parinfo.value LT parinfo.limits[0] AND parinfo.limited[0], numForce)
+;  IF numForce GT 0 THEN BEGIN
+;    parSpan = parinfo.limits[1] - parinfo.limits[0]
+;    parinfo[forceUpInds].value = parinfo[forceUpInds].limits[0] + 0.01*parSpan[forceUpInds]
+;  ENDIF
+;  forceDownInds = WHERE(parinfo.value GT parinfo.limits[1] AND parinfo.limited[1], numForce)
+;  IF numForce GT 0 THEN BEGIN
+;    parSpan = parinfo.limits[1] - parinfo.limits[0]
+;    parinfo[forceDownInds].value = parinfo[forceDownInds].limits[0] - 0.01*parSpan[forceDownInds]
+;  ENDIF
+;
+  ;Set the parameters
   p3 = parinfo.value
   ; Use the function ellipse to find the image pameters "p" to the Sersic profile
   PRINT_TEXT2, event, NEW_LINE() + 'Now fitting the BULGE_AND_ONE_SERSIC_DISK model'
@@ -210,7 +229,6 @@ FUNCTION FIT_GALAXY_MODELS, event, image, x0, y0, ellipseAxes, PAguess, skynoise
   chi_nu3   = TOTAL(((image-arr)*weight)^2)/(TOTAL(weight GT 0) - TOTAL(~parinfo.fixed))
   chi_nuStr = SIG_FIG_STRING(chi_nu3, 3)
   PRINT_TEXT2, event, 'BULGE_AND_ONE_SERSIC_DISK model fit with reduced chi^2 = ' + chi_nuStr
-
 
   ;*** FIT BULGE_AND_EXP_RADIAL_SECH2_VERTICAL_DISK ***
   ; p(0) is the center pixel in the x direction

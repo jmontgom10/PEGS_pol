@@ -748,7 +748,6 @@ PRO S2_BUILD_GALAXY_MASK, event
   ;   Effectively everything after this can be skipped now that the mask info is simply written to a file
   ;   and masks are generated 'on the fly'
   
-  
   ;Compute Mimir and 2MASS image pixel locations
   nxMimir = 1024                                            ;Width of a standard Mimir image
   nyMimir = 1026                                            ;Height of a standard Mimir image
@@ -925,6 +924,11 @@ PRO S2_PEGS_SKI_JUMP_REPAIR, event
   starMask     = READFITS(starMaskPath)
   mask         = galMask or starMask
   skynoise     = SXPAR(groupStruc.displayHeader, 'SIGMA')
+  
+  CASE groupStruc.NIRband OF
+    'H':  testCriterion = 6.0
+    'Ks': testCriterion = 12.0
+  ENDCASE
 
   FOR i = 0, groupStruc.numGroups - 1 DO BEGIN              ;Loop through each of the groups
     goodFiles = WHERE(groupStruc.groupImages[i,*] NE '', numGood)
@@ -937,7 +941,7 @@ PRO S2_PEGS_SKI_JUMP_REPAIR, event
     FOR j = 0, numGood - 1 DO BEGIN
       image_path = groupStruc.groupImages[i,goodFiles[j]]   ;Grab the 'image_path' for this particular image
       S2_PEGS_SKI_JUMP_DETECTOR, event, image_path, $       ;Use the PPOL ski jump detector with a 6.0-sigma detection threshold
-        ski_jump_code, CRITERION=6.0
+        ski_jump_code, CRITERION=testCriterion
       ;
       ; ski_jump_code -
       ;   00 = top, bottom OK

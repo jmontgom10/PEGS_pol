@@ -91,7 +91,7 @@ IF stars THEN BEGIN
   EXTAST, groupStruc.displayHeader, Astr
   AD2XY, groupStruc.starInfo.RAJ2000, groupStruc.starInfo.DEJ2000, Astr, xStars, yStars
   AD2XY, SXPAR(maskHeader, 'RA_ROT'), SXPAR(maskHeader, 'DEC_ROT'), Astr, Xgal, Ygal
-  nearGal = nearGal    GT maskingThreshold                  ;Make a mask that is 1.2X bigger... (for locating nearby stars)
+  nearGal = nearGal GT maskingThreshold                     ;Make a mask that is 1.2X bigger... (for locating nearby stars)
   xStars  = Xcen + (xStars - Xgal)*pl_sc_convert            ;Compute the x and y locations in the new plate scale
   yStars  = Ycen + (yStars - Ygal)*pl_sc_convert
   starWid = parameters[numParams - 3]
@@ -107,14 +107,11 @@ IF stars THEN BEGIN
   yMaskStars   = yStars[maskStars]
   
   FOR i = 0, numMasked - 1 DO BEGIN
-    IF (xMaskStars[i] GT 10) AND (xMaskStars[i] LT naxis1 - 10) AND $
-      (yMaskStars[i] GT 10) AND (yMaskStars[i] LT naxis2 - 10) THEN BEGIN
-      ;Compute a radius to mask bassed on the brightness of the star
-      maskRad  = 10E^(0.30E*MIN(magMaskStars)/magMaskStars[i])*starWid*pl_sc_convert
-      starMask = SQRT((xx - xMaskStars[i])^2 + $            ;Find pixels near this star
-        (yy - yMaskStars[i])^2) LT maskRad
-      mask = mask OR starMask                               ;Add those pixels to the mask
-    ENDIF
+    ;Compute a radius to mask bassed on the brightness of the star
+    maskRad  = 10E^(0.30E*MIN(magMaskStars)/magMaskStars[i])*starWid*pl_sc_convert
+    starMask = SQRT((xx - xMaskStars[i])^2 + $            ;Find pixels near this star
+      (yy - yMaskStars[i])^2) LT maskRad
+    mask = mask OR starMask                               ;Add those pixels to the mask
   ENDFOR
 ENDIF
 

@@ -339,7 +339,7 @@ PRO PEGS_POL_GUI
   
   ;Produce a display window that will be used for ALL analysis steps
   wImageWindow           = WIDGET_DRAW(wAnalysisWidgets, $
-    XSIZE=10, YSIZE=10, $
+    XSIZE=12, YSIZE=12, $
     UNAME='IMAGE_DISPLAY_WINDOW')
   
   ;***********************bottom pannel********************

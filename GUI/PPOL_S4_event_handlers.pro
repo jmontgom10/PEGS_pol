@@ -51,27 +51,6 @@ PRO S4_DETERMINE_BOUNDARIES, event
   limitsRA  = [MIN(limitsRA[0,*]), MAX(limitsRA[1,*])]
   limitsDec = [MAX(limitsDec[0,*]), MIN(limitsDec[1,*])]
 
-;  FOR j = 1, N_ELEMENTS(all_astr) - 1 DO BEGIN                        ;Loop through all selected images and compute dither coverage
-;    
-;    limitRA1  = all_astr[j].crval[0] + (0.5*[-deltaRA, +deltaRA])*COS(all_astr[j].crval[1]*!DTOR)
-;    limitDec1 = all_astr[j].crval[1] + (0.5*[-deltaDec,+deltaDec])
-;    
-;    IF (limitRA1[0] GT limitRA[0]) THEN BEGIN
-;      limitRA[0] = limitRA1[0]
-;    ENDIF
-;    IF (limitRA1[1] LT limitRA[1]) THEN BEGIN
-;      limitRA[1] = limitRA1[1]
-;    ENDIF
-;    IF (limitDec1[0] GT limitDec[0]) THEN BEGIN
-;      limitDec[0] = limitDec1[0]
-;    ENDIF
-;    IF (limitDec1[1] LT limitDec[1]) THEN BEGIN
-;      limitDec[1] = limitDec1[1]
-;    ENDIF
-;    IF ABS(limitRA[0] - 148.91413) LT 0.0001D THEN STOP
-;    IF limitRA[0] GT limitRA[1] THEN STOP
-;  ENDFOR
-;    STOP  
   EXTAST,  groupStruc.displayHeader, displayAstr                      ;Grab the astrometry from the 2MASS image
   AD2XY, limitsRA, limitsDec, displayAstr, limitsX, limitsY           ;Compute the coverage limits in pixel space
   AD2XY, all_astr.crval[0], all_astr.crval[1], $                      ;Compute position of each dither pointing (in pixel space)
@@ -153,13 +132,42 @@ PRO S4_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
   WIDGET_CONTROL, event.top, GET_UVALUE=groupStruc                    ;Retrieve the group summary structure
   wS4magRangeSlider    = WIDGET_INFO(event.top, FIND_BY_UNAME='S4_MAG_RANGE')
   wS4magRangeSensitive = WIDGET_INFO(wS4magRangeSlider, /SENSITIVE)   ;Determine if the slider widget is sensitive or not
+  displayWID           = WIDGET_INFO(event.top,FIND_BY_UNAME='IMAGE_DISPLAY_WINDOW');Grab the display window WID
   
   ;If the dual slider is desensitized, then sensitize it and change button value
   IF wS4magRangeSensitive EQ 0 THEN BEGIN
+    ;Sensitize the button
     WIDGET_CONTROL, wS4magRangeSlider, SENSITIVE = 1
     WIDGET_CONTROL, event.ID, SET_VALUE='Slider Active'
 
-    IF N_ELEMENTS(starsNearMask) EQ 0 THEN BEGIN                          ;If there is no stored mask, build it and store it
+    ;Get the display widget and make it active
+    WIDGET_CONTROL, displayWID, GET_VALUE = displayWindowIndex          ;Grab the display window index
+    WSET, displayWindowIndex                                            ;Set that display window as active
+    
+    ;Redisplay the 2MASS image
+    SKY, groupStruc.displayImage, skyMode, skyNoise, /SILENT
+    TVIM, groupStruc.displayImage, RANGE = skyMode + [-1, +100]*skyNoise
+    
+    ;Compute image boundaries
+    limitsRA  = groupStruc.coverageBoundaries.RA
+    limitsDec = groupStruc.coverageBoundaries.Dec
+    EXTAST,  groupStruc.displayHeader, displayAstr                      ;Grab the astrometry from the 2MASS image
+    AD2XY, limitsRA, limitsDec, displayAstr, limitsX, limitsY           ;Compute the coverage limits in pixel space
+    lfLimit = MIN(limitsX)
+    rtLimit = MAX(limitsX)
+    btLimit = MIN(limitsY)
+    tpLimit = MAX(limitsY)
+
+    ;Oplot the image boundaries and stars
+    AD2XY, groupStruc.starInfo.RAJ2000, groupStruc.starInfo.DEJ2000,$   ;Convert star positions to pixel coordinates
+      displayAstr, xStars, yStars
+    greenColorInd = RGB_TO_DECOMPOSED([0,255,0])
+    OPLOT, (xStars-1), (yStars-1), $                                    ;Show the user where the selected stars are
+      PSYM = 6, COLOR = greenColorInd
+    PLOTS, [lfLimit,lfLimit,rtLimit,rtLimit,lfLimit], $                 ;Draw the boundary of the dither coverage
+      [btLimit,tpLimit,tpLimit,btLimit,btLimit]
+
+    IF N_ELEMENTS(starsNearMask) EQ 0 THEN BEGIN                        ;If there is no stored mask, build it and store it
       maskFile  = groupStruc.analysis_dir + 'S2_Ski_Jump_Fixes' + PATH_SEP() + 'Masking_files' + PATH_SEP() + 'mask2MASS.fits'
       mask2MASS = READFITS(maskFile)                                      ;Load in the 2MASS mask
 
@@ -474,15 +482,26 @@ PRO S4_PERFORM_PHOTOMETRY, event
     groupProgString = STRING(groupNcount, numGoodGroups, FORMAT='("Group ",I2," of ",I2)')
     UPDATE_PROGRESSBAR, groupProgBarWID, 100*FLOAT(i+1)/numGoodGroups, DISPLAY_MESSAGE=groupProgString
     WAIT, 0.05
-    nextPercentagePoint = 1B                                            ;Variable to track what the next progress update will be
+    nextPercentagePoint = 1B                                          ;Variable to track what the next progress update will be
     UPDATE_PROGRESSBAR, imageProgBarWID, 0E, /PERCENTAGE
-
+    ;
+    ;Check if the previous loop exited too soon
+    ;
+    IF i GT 0 THEN BEGIN
+      IF j LT groupStruc.groupNumbers[i-1] - 1 THEN BEGIN
+        PRINT, 'Previous group exited too soon.'
+        STOP
+      ENDIF
+    ENDIF
+    ;
     ;Loop through all the files in this group
+    ;
     FOR j = 0, groupStruc.groupNumbers[i] - 1 DO BEGIN
-      
       BDPfile = groupStruc.groupImages[i,j]                           ;Alias the BDP file paths
       S3file  = groupStruc.analysis_dir + 'S3_Astrometry' + $         ;Store the astrometry files
         PATH_SEP() + FILE_BASENAME(BDPfile)
+
+      ;Compute whether or not quality files exist to perform photometry.
       step3Test = FILE_TEST(S3file)                                   ;Test if a step 3 image is present
       astroFlag = (groupStruc.astroFlags[i,j] EQ 1)
       IF step3Test AND astroFlag THEN BEGIN
@@ -490,6 +509,7 @@ PRO S4_PERFORM_PHOTOMETRY, event
         photoDecs1 = groupStruc.starInfo[photStars].DEJ2000
         imgBDP     = READFITS(BDPfile, /SILENT)                       ;Read in the BDP image
         img        = READFITS(S3file, imgHeader, /SILENT)             ;Read in the step 3 image
+        medImg     = MEDIAN(img, 3)                                   ;Compute a median image for use in GAUSS2DFIT
         sz         = SIZE(img, /DIMENSIONS)                           ;Grab the image dimensions
         EXTAST, imgHeader, astr, noparams                             ;Extract image astometry from header
         AD2XY, photoRAs1, photoDecs1, astr, photoX, photoY            ;Convert 2MASS (RA, Dec) into (x,y) positions
@@ -498,51 +518,36 @@ PRO S4_PERFORM_PHOTOMETRY, event
         ;***NAME SCHEME***
         ;xPhot and yPhot   = star position as deteced in the image
         ;photoX and photoY = star position as estimaed by (RA, Dec) and astrometry
-        
+
         G_SKY, img, skymode, skysig, mfm_mean, mfm_stdev, $             ;Quickly generate sky statistics
           LLQ=llq, /SILENT
         nStars    = N_ELEMENTS(photoX)                                  ;Count the number of stars to find
         FWHMs     = FLTARR(nStars)                                      ;Array to store FWHM of each star
         keepStars = BYTARR(nStars)
         FOR k = 0, nStars - 1 DO BEGIN                                  ;Loop through each star and find its gcentrd value
-          removeStars = -1                                              ;Reset the removeStars variable
-          xOff     = ROUND(photoX[k] - 20) > 0
-          xRt      = (xOff  + 40) < (sz[0] - 1)
-          yOff     = ROUND(photoY[k] - 20) > 0
-          yTop     = (yOff + 40)  < (sz[1] - 1)
-          subArBDP = imgBDP[xOff:xRt, yOff:yTop]                        ;Cut out a subarray for testing for saturation
-          subArray = img[xOff:xRt, yOff:yTop]                           ;Cut out a subarray for gaussian fitting
-          result   = GAUSS2DFIT(subArray, A, /TILT)                     ;Gaussian fit the star
-          inArray  = (A[4] GT 5) AND (A[4] LT 34) $                     ;If the fit is located in the center of the array
+          xOff      = ROUND(photoX[k] - 20) > 2
+          xRt       = (xOff  + 40) < (sz[0] - 3)
+          yOff      = ROUND(photoY[k] - 20) > 7
+          yTop      = (yOff + 40)  < (sz[1] - 8)
+          subArBDP  = imgBDP[xOff:xRt, yOff:yTop]                       ;Cut out a subarray for testing for saturation
+          subArray  = img[xOff:xRt, yOff:yTop]                          ;Cut out a subarray for testing centroid.
+          subArray1 = medImg[xOff:xRt, yOff:yTop]                       ;Cut out a subarray for gaussian fitting
+          result    = GAUSS2DFIT(subArray1, A, /TILT)                   ;Gaussian fit the star
+          inArray   = (A[4] GT 5) AND (A[4] LT 34) $                    ;If the fit is located in the center of the array
             AND (A[5] GT 5) AND (A[5] LT 34)
-          okShape  = (A[2] GT 0.8) AND (A[2] LT 5) $                    ;and if its gaussian width is reasonable (not a hot pixel)
+          okShape   = (A[2] GT 0.8) AND (A[2] LT 5) $                   ;and if its gaussian width is reasonable (not a hot pixel)
             AND (A[3] GT 0.8) AND (A[3] LT 5)
-
           IF inArray AND okShape THEN BEGIN
             FWHMs[k] = SQRT(A[2]*A[3])*sigma2FWHM                       ;Compute the FWHM for this star
             GCNTRD, subArray, A[4], A[5], xcen, ycen,  FWHMs[k]         ;Centroid this star (using estimated FWHM)
             xPhot[k] = xOff + xcen                                      ;Update the star x-position
             yPhot[k] = yOff + ycen                                      ;Update the star y-position
-            
-;            deltaPos = SQRT((xPhot[k] - A[4])^2 + (yPhot[k] - A[5])^2)
             deltaPos = SQRT((xcen - A[4])^2 + (ycen - A[5])^2)          ;Check if the centroid position is far from gaussian fit...
             IF deltaPos LE 1.1E THEN keepStars[k] = 1B
-;            IF deltaPos LE 1 THEN keepStars[k] = 1B
-;            IF deltaPos GT 1 THEN BEGIN                                 ;Test for large shifts
-;              PRINT, 'Could not fit star #', k
-;              PRINT, 'Adding to the "removeStars" list'
-;              IF TOTAL(removeStars) EQ -1 THEN removeStars = [k] $
-;              ELSE removeStars = [removeStars, k]                       ;Remove star from list for "problems fitting"
-;            ENDIF
-          
-;          ENDIF ELSE BEGIN                                              ;If GAUS2DFIT failed then skip star
-;            PRINT, 'Could not fit star #', k
-;            PRINT, 'Adding to the "removeStars" list'
-;            IF TOTAL(removeStars) EQ -1 THEN removeStars = [k] $
-;            ELSE removeStars = [removeStars, k]                         ;Remove star from list for "problems fitting"                                  ;Remove star from list for "problems fitting"
           ENDIF
         ENDFOR
-        
+
+        ;Grab the statistics of the stellar widths to establish how close is too close
         mean_FWHM   = (MEDIAN_FILTERED_MEAN(FWHMs))[0]                  ;Compute the mean FWHM
         fit_scale   = 1.75                                              ;Times fwhm - sets fitting zone
         fit_rad     = fit_scale*mean_FWHM                               ;Fit the PSF within this radius
@@ -554,55 +559,43 @@ PRO S4_PERFORM_PHOTOMETRY, event
           groups = group_vector[UNIQ(group_vector, SORT(group_vector))]   ;Parse out the group IDs
           FOR k = 0, N_ELEMENTS(groups) - 1 DO BEGIN                      ;Loop through all the stars
             groupInds = WHERE(group_vector EQ groups[k], groupCount)      ;Select the stars in this group
-            IF groupCount GT 1 THEN keepStars[k] = 0B ;BEGIN                                 ;Save the star indices to remove
-;              IF TOTAL(removeStars) EQ -1 THEN removeStars = groupInds $
-;              ELSE removeStars = [removeStars, groupInds]
-;            ENDIF
+            IF groupCount GT 1 THEN keepStars[k] = 0B                     ;Mark crowded stars for deletion
           ENDFOR
-
-;          IF TOTAL(removeStars) NE -1 THEN BEGIN                          ;Test if there were any group stars to remove
-;            REMOVE, removeStars, xPhot, yPhot, $                          ;Remove stars that were part of groups
-;              photoRAs1, photoDecs1, group_vector
-;          ENDIF
         ENDIF ELSE group_vector = [0]
 
-        
         ;Now that ALL possible tests for good stars have been performed,
         ;cull the list to keep only the good stars, and continue
         keepInds = WHERE(keepStars, numKeep)
-        IF numKeep EQ 0 THEN CONTINUE
+        IF numKeep EQ 0 THEN stop;CONTINUE
         xPhot        = xPhot[keepInds]
         yPhot        = yPhot[keepInds]
-;        photoRAs1    = photoRAs1[keepInds]
-;        photoDecs1   = photoDecs1[keepInds]
         group_vector = group_vector[keepInds]
 
+        ;Match the star lists and count the stars
         SRCOR, xPhot, yPhot, photoX, photoY, $                          ;Match 2MASS entries with image star positions
           2*rcrit, ind1, ind2, OPTION = 1
         xPhot = xPhot[ind1] & yPhot = yPhot[ind1]                       ;Save the matched stars
         photoRAs1 = photoRAs1[ind2] & photoDecs1 = photoDecs1[ind2]     ;Save the matched stars
         nStars = N_ELEMENTS(ind1)                                       ;Recount the photometry stars
-        
-;        XY2AD, xPhot, yPhot, astr, photoRAs1, photoDecs1                ;Re-compute the star (RA, Dec) using updated astr
 
         ;Aperture photometry is performed for the pre-selected stars
         apr    = ap_vec * ap_rad * mean_FWHM                            ;Compute the apertures in terms of mean FWHM
         skyrad = ref_ap * ap_rad * mean_FWHM                            ;Compute sky annulus in terms of mean FWHM
         G_APER,img,xPhot,yPhot,mag,err,skyvalues,skyerr,phpadu,apr, $   ;Perform aperture photometry
           skyrad,badpix,bright_limit, /NO_BAD_PIX_FIX, /SILENT
-        badStars = WHERE(REFORM(mag[0,*]) LT 0 OR mag GT 18, numBad, $  ;Test for unreasonable magnitude measurements
+        badStars = WHERE(REFORM(mag[n_ap - 1,*]) LT 0 OR $              ;Test for unreasonable magnitude measurements
+          mag[n_ap - 1, *] GT 18, numBad, $
           COMPLEMENT = goodStars, NCOMPLEMENT = numGood)
+
         IF (numBad GT 0) AND (numGood GT 0) THEN BEGIN                  ;Only keep the good star information
           nStars       = numGood
           xPhot        = xPhot[goodStars]
           yPhot        = yPhot[goodStars]
           XY2AD, xPhot, yPhot, astr, photoRAs1, photoDecs1              ;Convert measured (x,y) to (RA,Dec)
-;          photoRAs1    = photoRAs1[goodStars]
-;          photoDecs1   = photoDecs1[goodStars]
           group_vector = group_vector[goodStars]
           G_APER,img,xPhot,yPhot,mag,err,skyvalues,skyerr,phpadu,apr, $ ;Re-compute aperture photometry
             skyrad,badpix,bright_limit, /NO_BAD_PIX_FIX, /SILENT
-        ENDIF ELSE IF ~(numGood GT 0) THEN BREAK
+        ENDIF ELSE IF ~(numGood GT 0) THEN CONTINUE
         
         skymean = (MEDIAN_FILTERED_MEAN(skyvalues))[0]                  ;Compute a mean sky value in PPOL fashion
         skysig  = mfm_stdev
@@ -620,7 +613,19 @@ PRO S4_PERFORM_PHOTOMETRY, event
         ;*****************************************************************************
         ;**********I NEED TO BE ABLE TO CATCH ERRORS FROM THIS PROCEDURE!*************
         ;*****************************************************************************
-        ;IF i EQ 4 AND j EQ 47 THEN BREAK
+        ;Establish error handler. When errors occur, the index of the
+        ;error is returned in the variable Error_status:
+        CATCH, Error_status
+        ;This statement begins the error handler:
+        IF Error_status NE 0 THEN BEGIN
+          PRINT, 'Error index: ', Error_status
+          PRINT, 'Error message: ', !ERROR_STATE.MSG
+          ; Handle the error via a CONTINUE statement:
+          CONTINUE
+          CATCH, /CANCEL
+        ENDIF
+        
+        ;Perform the PSF fitting routine
         JM_GETPSF,img,xPhot,yPhot,mag,skyvalues,ronois,phpadu, $        ;Fit a PSF model
           gauss, psf, mean_fwhm, idpsf, rad_PSF, fit_rad, $
           x_w_psf, y_w_psf, PSF_mag, sum_resid, resid, psfname;, $
@@ -707,17 +712,19 @@ PRO S4_PERFORM_PHOTOMETRY, event
         ENDFOR
         FREE_LUN, lun
       ENDIF
-      
+
 ;      completedCounter++                                                ;Increment the completed counter
 ;      progressPercentage = 100*FLOAT(completedCounter)/FLOAT(numFiles)  ;Compute progress
       progressPercentage = 100E*FLOAT(j+1)/FLOAT(groupStruc.groupNumbers[i])
       IF progressPercentage GT nextPercentagePoint THEN BEGIN           ;Determine if the bar needs to be updated
         UPDATE_PROGRESSBAR, imageProgBarWID, progressPercentage, $      ;Update the progress bar if necessary
           /PERCENTAGE
-          WAIT, 0.05
           nextPercentagePoint++                                         ;Increment next update
+
+          ;To give the display time to update
+          WAIT, 0.05
       ENDIF
-    ENDFOR
+   ENDFOR
   ENDFOR
   
   UPDATE_PROGRESSBAR, imageProgBarWID, 100E, /PERCENTAGE              ;Update the progress bar if necessary  
