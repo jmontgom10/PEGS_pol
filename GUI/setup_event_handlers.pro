@@ -129,7 +129,6 @@ PRO OPEN_PPOL_PROJECT, event
         coverageBoundaries:{RA:[0D,0D], Dec:[0D,0D]}, $
         NIRband:NIRband, $
         stepCompletion:'', $
-        currentS3files:'not supersky flattened', $
         numGroups:numGroups, $
         groupNames:groupNames, $
         groupNumbers:groupNumbers, $

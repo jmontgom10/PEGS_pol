@@ -29,9 +29,6 @@ PRO UPDATE_LOAD_TAB, event, groupStruc
   WIDGET_CONTROL, numGroupsWID, SET_VALUE=numGroups
   WIDGET_CONTROL, NIRbandWID, SET_VALUE=groupStruc.NIRband
   WIDGET_CONTROL, stepCompleteWID, SET_VALUE=groupStruc.stepCompletion
-  WIDGET_CONTROL, currentS3filesWID, SET_VALUE=groupStruc.currentS3files
-  
-  
   
   ;Update the astrometry star slider minimum--maximum range
   IF groupStruc.NIRband EQ 'H' THEN magIndex = 5 $
@@ -200,7 +197,7 @@ PRO UPDATE_LOAD_TAB, event, groupStruc
 ;    coverageBoundaries:groupStruc.coverageBoundaries, $
 ;    NIRband:groupStruc.NIRband, $
 ;    stepCompletion:groupStruc.stepCompletion, $
-;;    numS3failed:groupStruc.numS3failed, $
+;    numS3failed:groupStruc.numS3failed, $
 ;    currentS3files:groupStruc.currentS3files, $
 ;    numGroups:groupStruc.numGroups, $
 ;    groupNames:groupStruc.groupNames, $

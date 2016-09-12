@@ -258,175 +258,6 @@ PRO S4_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
   
 END
 
-
-
-;PRO S4_GET_PHOTOMETRY_STARS, event
-;  tlb_wid = WIDGET_INFO(event.top, FIND_BY_UNAME='WID_BASE')          ;Retrieve the TLB widget ID
-;  WIDGET_CONTROL, tlb_wid, GET_UVALUE=groupStruc                      ;Retrieve the group summary structure
-;  min_wid = WIDGET_INFO(event.top, FIND_BY_UNAME='S4_minMag')        ;Retrieve the min mag widget ID
-;  WIDGET_CONTROL, min_wid, GET_UVALUE=minMag                          ;Retrieve the min mag value
-;  max_wid = WIDGET_INFO(event.top, FIND_BY_UNAME='S4_maxMag')        ;Retrieve the max mag widget ID
-;  WIDGET_CONTROL, max_wid, GET_UVALUE=maxMag                          ;Retrieve the max mag value
-;  displayWID = WIDGET_INFO(event.top, FIND_BY_UNAME='IMAGE_DISPLAY_WINDOW')
-;     
-;  testDir = 'S4_Restricted_photometry'
-;  IF ~FILE_TEST(testDir) THEN FILE_MKDIR, testDir
-;  testDir = testDir + PATH_SEP() + 'photometryStars'
-;  IF ~FILE_TEST(testDir) THEN FILE_MKDIR, testDir
-;  
-;  maskFile   = 'S3B_Supersky_subtraction' + PATH_SEP() + 'Masking_files' + PATH_SEP() + 'galMask.fits'
-;  galMask    = READFITS(maskFile, maskHeader)
-;  maskSz     = SIZE(galMask, /DIMENSIONS)
-;  RA_cen     = SXPAR(maskHeader, 'RA_CEN')
-;  Dec_cen    = SXPAR(maskHeader, 'DEC_CEN')
-;  coaddPath  = 'S4_Restricted_photometry' + PATH_SEP() + 'coadds'
-;  coaddFiles = FILE_SEARCH(coaddPath, '*quickCoadd.fits', COUNT = numCoadds)
-;  IF groupStruc.numGroups NE numCoadds THEN STOP
-;  
-;  FOR i = 0, numCoadds - 1 DO BEGIN
-;    coaddImg    = READFITS(coaddFiles[i])
-;    coaddHeader = HEADFITS(coaddFiles[i])
-;    EXTAST, coaddHeader, astr, noparams
-;    nx         = astr.naxis[0]                              ;Grab coadd image x-axis size
-;    ny         = astr.naxis[1]                              ;Grab coadd image y-axis size
-;    padGalMask = galMask                                    ;Alias the galaxy mask for manipulation
-;    IF nx GT maskSz[0] THEN BEGIN
-;      padX         = (nx - maskSz[0])/2                     ;Compute the padding to add on each side
-;      padArr       = FLTARR(padX, maskSz[1])                ;Create the padding array
-;      padGalMask   = [padArr, padGalMask, padArr]           ;Pad the mask
-;    ENDIF
-;    IF ny GT maskSz[1] THEN BEGIN
-;      padY         = (ny - maskSz[1])/2                     ;Compute the padding to add on each side
-;      padArr       = FLTARR(nx, padY)                       ;Create the padding array
-;      padGalMask   = [[padArr], [padGalMask], [padArr]]     ;Pad the mask
-;    ENDIF
-;  
-;    AD2XY, RA_cen, Dec_cen, astr, xc, yc
-;    
-;    ra_off  = ROUND(xc - astr.crpix[0])                     ;Find the x shift for the mask
-;    dec_off = ROUND(yc - astr.crpix[0])                     ;Find the y shift for the mask
-;    print, "mask shift = ",ra_off, dec_off," in RA, Dec directions"
-;    ;
-;    ; cycle mask by this amount
-;    ;
-;    IF ra_off LT 0 THEN $
-;      this_mask = [padGalMask[abs(ra_off):*,*], fltarr(abs(ra_off), ny)] $
-;    ELSE IF ra_off GT 0 THEN $
-;      this_mask = [fltarr(ra_off, ny), padGalMask[0:(nx-1-ra_off),*]] ELSE $
-;      this_mask = padGalMask
-;    IF dec_off LT 0 THEN $
-;      this_mask = [[this_mask[*,abs(dec_off):*]], [fltarr(nx, abs(dec_off))]] $
-;    ELSE IF dec_off GT 0 THEN $
-;      this_mask = [[fltarr(nx, dec_off)], [this_mask[*,0:(ny-1-dec_off)]]] ELSE $
-;      this_mask = this_mask
-;    
-;    lfTrim = SXPAR(coaddHeader, 'LFTRIM')                    ;Extract the dither overlap region
-;    rtTrim = SXPAR(coaddHeader, 'RTTRIM')
-;    btTrim = SXPAR(coaddHeader, 'BTTRIM')
-;    tpTrim = SXPAR(coaddHeader, 'TPTRIM')
-;    
-;    xx = REBIN(REFORM(INDGEN(nx), nx, 1), nx, ny, /SAMPLE)
-;    yy = REBIN(REFORM(INDGEN(ny), 1, ny), nx, ny, /SAMPLE)
-;    border_mask = 1 - (xx GT lfTrim AND xx LT rtTrim $      ;Create a mask for the border trim
-;      AND yy GT btTrim AND yy LT tpTrim)
-;    padGalMask  = this_mask                                 ;Store the SHIFTED "padded galaxy mask"
-;    this_mask   = this_mask OR border_mask                  ;Supplement mask with the border trim
-;    
-;    ;Retrieve the 2MASS star info
-;    this_mirror = ['CfA', 'UK', 'CDS', 'CA', 'Jp']
-;    
-;    ;
-;    nloop = 0L
-;    WHILE nloop LT 4320L DO BEGIN                           ; 1 day at 20 sec per try
-;      ;
-;      vizier_flag = 0
-;      FOR imirror = 0, N_ELEMENTS(this_mirror)-1 DO BEGIN
-;        IF(vizier_flag EQ 0) THEN BEGIN
-;          info = mp_QueryVizier('2MASS-PSC', astr.crval, 10, $
-;          MIRROR=this_mirror[imirror], constraint='Qflg==AAA')
-;          test = size(info)
-;          IF test[0] NE 0 THEN vizier_flag = 1
-;        ENDIF
-;      ENDFOR
-;      
-;      IF(vizier_flag EQ 0) THEN BEGIN
-;        info = 99   ;No Vizier servers available
-;        ;
-;        ; if no Vizier servers, wait 20s and retry
-;        ;
-;        PRINT, 'No Vizier Servers at ',SYSTIME(),' waiting 20s and retrying'
-;        WAIT, 20
-;        nloop++
-;      ENDIF ELSE nloop = 4321L                              ;Force the loop to close
-;    ENDWHILE
-;    
-;    info       = info[SORT(info.Hmag)]                      ;Sort the stars by brightness
-;    
-;;    sz = SIZE(galMask, /DIMENSIONS)                        ;Create 2D pixel number arrays
-;;    nx = sz[0]
-;;    ny = sz[1]
-;;    xx = REBIN(REFORM(FINDGEN(nx), nx, 1), nx, ny, /SAMPLE)
-;;    yy = REBIN(REFORM(FINDGEN(ny), 1, ny), nx, ny, /SAMPLE)
-;
-;    AD2XY, info.RAJ2000, info.DEJ2000, astr, xStar, yStar   ;Convert star positions to pixel coordinates
-;    goodStars  = WHERE(info.Hmag GT minMag $                ;Only the stars in the right magnitude range shall pass
-;      AND info.Hmag LT maxMag $
-;      AND ~this_mask[ROUND(xStar), ROUND(yStar)], numGood)  ;Also apply the galaxy and border masking
-;    IF numGood GT 0 THEN BEGIN
-;      info  = info[goodStars]
-;      xStar = xStar[goodStars]
-;      yStar = yStar[goodStars]
-;    ENDIF ELSE STOP
-;    
-;    ;    EXTAST, coaddHeader, coaddAstr                     ;Extract the coadd astrometry Header
-;    nearGalaxy = INTARR(numGood)
-;    FOR j = 0, numGood - 1 DO BEGIN
-;      distance   = SQRT((xx - xStar[j])^2 + $               ;Compute pixel distances from the star locations
-;        (yy - yStar[j])^2)
-;      nearPixels = WHERE(distance LT 15, numNear)           ;Grab the pixels nearest to the star
-;      ;Test if the star center is near the galaxy mask
-;      IF numNear GT 1 THEN nearGalaxy[j]  = (TOTAL(padGalMask[nearPixels]) GT 1)
-;    ENDFOR
-;    
-;    goodStars = WHERE(~nearGalaxy, numGood)                 ;Finally omit stars near to the galaxy mask
-;    IF numGood GT 0 THEN photoStars = info[goodStars] ELSE STOP 
-;
-;  
-;    AD2XY, photoStars.RAJ2000, photoStars.DEJ2000, astr, xPhoto, yPhoto
-;    SKY, coaddImg, skymode, skynoise, /SILENT
-;    TVIM, coaddImg, RANGE = skymode + [-3,+10]*skyNoise
-;    PLOTS, [lfTrim, lfTrim, rtTrim, rtTrim, lfTrim], $
-;           [btTrim, tpTrim, tpTrim, btTrim, btTrim]
-;    PLOTSYM, 0
-;    
-;    deltaColor = 255/(numGood - 1)
-;    HSV, 100, 100, 100, 100, 0, 300E/360E, colors
-;;    starNums  = INDGEN(numGood)
-;;    colorInds = (starNums)*deltaColor
-;
-;;    ;           red                         green                      blue
-;;    colors    = colors[colorInds,0] + 256L*(colors[colorInds,1] + 256L*colors[colorInds,2])
-;;    
-;    FOR j = 0, numGood - 1 DO BEGIN
-;      ;       red                            green                         blue
-;      color = colors[j*deltaColor,0] + 256L*(colors[j*deltaColor,1] + 256L*colors[j*deltaColor,2])
-;      OPLOT, [xPhoto[j]], [yPhoto[j]], PSYM = 8, COLOR = color
-;      XYOUTS, [xPhoto[j]], [yPhoto[j]] - 60, /DATA, ALIGNMENT = 0.5, $
-;        STRING(photoStars[j].Hmag, FORMAT='("H=",F4.1)'), COLOR = color
-;      XYOUTS, [xPhoto[j]], [yPhoto[j]] + 20, /DATA, ALIGNMENT = 0.5, $
-;        STRING(j+1, FORMAT='("#",F4.1)'), COLOR = color
-;    ENDFOR
-;
-;    
-;    ;Insert decision protocol (using GUI buttons)
-;
-;    photPath = 'S4_Restricted_photometry' + PATH_SEP() + 'photometryStars'
-;    SAVE, photoStars, FILENAME = photPath + PATH_SEP() + groupStruc.groupNames[i] + '_photoStars.sav'
-;  ENDFOR
-;  PRINT, 'Done downloading photometry star data'
-;END
-
-
 PRO S4_PERFORM_PHOTOMETRY, event
 
   tlb_wid = WIDGET_INFO(event.top, FIND_BY_UNAME='WID_BASE')          ;Retrieve the TLB widget ID
@@ -434,7 +265,7 @@ PRO S4_PERFORM_PHOTOMETRY, event
   groupProgBarWID = WIDGET_INFO(event.top, FIND_BY_UNAME='GROUP_PROGRESS_BAR')
   imageProgBarWID = WIDGET_INFO(event.top, FIND_BY_UNAME='IMAGE_PROGRESS_BAR')
 
-  S4dir = groupStruc.analysis_dir + 'S4_Restricted_photometry'
+  S4dir = groupStruc.analysis_dir + 'S4_First_PSF_Fits'
   IF ~FILE_TEST(S4dir, /DIRECTORY) THEN FILE_MKDIR, S4dir
 
   ;The following code sets up the basic properties for the G_FIND procedure to be used for ALL images
@@ -477,6 +308,9 @@ PRO S4_PERFORM_PHOTOMETRY, event
   groupNcount    = 0
   ;Loop thorugh each group
   FOR i = 0, groupStruc.numGroups - 1 DO BEGIN
+;    ; temporary debug
+;    if i lt 10 then continue
+;    
     IF groupStruc.groupFlags[i] EQ 0 THEN CONTINUE
     groupNcount++
     groupProgString = STRING(groupNcount, numGoodGroups, FORMAT='("Group ",I2," of ",I2)')
@@ -584,7 +418,7 @@ PRO S4_PERFORM_PHOTOMETRY, event
         G_APER,img,xPhot,yPhot,mag,err,skyvalues,skyerr,phpadu,apr, $   ;Perform aperture photometry
           skyrad,badpix,bright_limit, /NO_BAD_PIX_FIX, /SILENT
         badStars = WHERE(REFORM(mag[n_ap - 1,*]) LT 0 OR $              ;Test for unreasonable magnitude measurements
-          mag[n_ap - 1, *] GT 18, numBad, $
+          mag[n_ap - 1, *] GT 22, numBad, $
           COMPLEMENT = goodStars, NCOMPLEMENT = numGood)
 
         IF (numBad GT 0) AND (numGood GT 0) THEN BEGIN                  ;Only keep the good star information
@@ -689,8 +523,8 @@ PRO S4_PERFORM_PHOTOMETRY, event
         
         ; write modified header, then phot info
         ;
-        output_path = groupStruc.analysis_dir + 'S4_Restricted_photometry' + PATH_SEP() + $
-          FILE_BASENAME(S3file, '.fits') + '_phot.dat'         ;Define the output filename
+        output_path = groupStruc.analysis_dir + 'S4_First_PSF_Fits' + PATH_SEP() + $
+          FILE_BASENAME(S3file, '.fits') + '_phot.dat'                  ;Define the output filename
         OPENW, lun, output_path, /GET_LUN                               ;Open the file logical unit
         n_header = N_ELEMENTS(imgHeader)
         FOR ih = 0, n_header - 1 DO BEGIN                               ;Write the header to file
@@ -729,6 +563,53 @@ PRO S4_PERFORM_PHOTOMETRY, event
   
   UPDATE_PROGRESSBAR, imageProgBarWID, 100E, /PERCENTAGE              ;Update the progress bar if necessary  
   PRINT_TEXT2, event, 'Finished all photometry'
+
+  ;Now update PEGS_POL and PPOL summary files
+  ;Read in the PPOL group summary
+  PPOL_group_summary = groupStruc.analysis_dir + PATH_SEP() + $
+    'S1_Image_Groups_and_Meta_Groups' + PATH_SEP() + 'Group_Summary.sav'
+  RESTORE, PPOL_group_summary
+  ;If the PPOL summary was successfully read, then update it and save to disk
+  IF N_ELEMENTS(G_PTR) GT 0 THEN BEGIN
+    ;Update the PPOL group summary image usage flags
+    maxGroup = MAX(groupStruc.groupNumbers)
+
+    ;Loop through each group and file and update the image flag accordingly.
+    FOR i = 0, groupStruc.numGroups - 1 DO BEGIN
+      FOR j = 0, groupStruc.groupNumbers[i] - 1 DO BEGIN
+        ;Construct the photometry file name
+        BDPfile = groupStruc.groupImages[i,j]                         ;Alias the BDP file paths
+        S4file  = groupStruc.analysis_dir + 'S4_First_PSF_Fits' + PATH_SEP() + $
+          FILE_BASENAME(BDPfile, '.fits') + '_phot.dat'               ;Define the output filename
+        
+        ;Update image flags to match photometry output.
+        IF FILE_TEST(S4file) THEN BEGIN
+          groupStruc.imageFlags[i,j] = 1
+        ENDIF ELSE BEGIN
+          groupStruc.imageFlags[i,j] = 0
+        ENDELSE
+      ENDFOR
+      ;Update the PPOL step completed
+      (*G_PTR).GROUP_STEP[i] = 4
+
+      ;Update the PPOL image flags
+      (*G_PTR).GROUP_IMAGE_FLAGS[i,0:maxGroup-1] = groupStruc.imageFlags[i,0:maxGroup-1]
+    ENDFOR
+    ;Save the PEGS_POL group structure to disk
+    outFile = groupStruc.analysis_dir + $
+      'S1_Image_Groups_and_Meta_Groups' + PATH_SEP() + 'PEGS_POL_Group_Summary.sav'
+    SAVE, groupStruc, FILENAME = outFile
+
+    ;Save the PPOL summary results to disk
+    SAVE, G_PTR, FILENAME = PPOL_group_summary
+
+    ;Update the user on completion
+    PRINT_TEXT2, event, 'Updated PEGS_POL and PPOL summary files.'
+  ENDIF ELSE BEGIN
+    PRINT, 'ERROR IN UPDATE'
+    STOP
+  ENDELSE
+  
 END
 
 PRO S4_CHECK_PHOTOMETRY, event
@@ -773,8 +654,8 @@ PRO S4_CHECK_PHOTOMETRY, event
     WAIT, 0.05
     ;Loop through all the files in this group
     FOR j = 0, groupStruc.groupNumbers[i] - 1 DO BEGIN
-      IF groupStruc.astroFlags[i,j] NE 1 THEN CONTINUE                ;Skip files that are flagged for disuse
-      S4file = groupStruc.analysis_dir + 'S4_Restricted_photometry' + $   ;Set the S4 file name
+      IF groupStruc.imageFlags[i,j] NE 1 THEN CONTINUE                ;Skip files that are flagged for disuse
+      S4file = groupStruc.analysis_dir + 'S4_First_PSF_Fits' + $   ;Set the S4 file name
         PATH_SEP() + FILE_BASENAME(groupStruc.groupImages[i,j], '.fits') + '_phot.dat'
       done = 0                                                        ;Reset the completion flag
       WHILE (done EQ 0) OR (done EQ 2) DO BEGIN
@@ -901,4 +782,23 @@ PRO S4_CHECK_PHOTOMETRY, event
   UPDATE_GROUP_SUMMARY, event, groupStruc, /SAVE
   
   PRINT_TEXT2, event, 'Finished checking all image photometry'
+END
+
+PRO S4_UPDATE_PPOL_SUMMARY, event
+  ;This procedure will read in the PPOL group summary and update it.
+  ; 1) The "step completed" value will be set to "4"
+  ; 2) The usage flags will be set to match the files produced by PEGS_POL photometry.
+  
+  tlb_wid = WIDGET_INFO(event.top, FIND_BY_UNAME='WID_BASE')          ;Retrieve the TLB widget ID
+  WIDGET_CONTROL, tlb_wid, GET_UVALUE=groupStruc                      ;Retrieve the group summary structure
+
+  ;If the PPOL summary was successfully read, then update it and save to disk
+  IF N_ELEMENTS(G_PTR) GT 0 THEN BEGIN
+    ;Update the PPOL group summary image usage flags
+    maxGroup = MAX(groupStruc.groupNumbers)
+    FOR i = 0, groupStruc.numGroups - 1 DO BEGIN
+      (*G_PTR).GROUP_IMAGE_FLAGS[i,0:maxGroup-1] = groupStruc.imageFlags[i,0:maxGroup-1]
+    ENDFOR
+    SAVE, G_PTR, FILENAME = PPOL_group_summary
+  ENDIF
 END

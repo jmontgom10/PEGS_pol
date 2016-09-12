@@ -169,19 +169,9 @@ PRO PEGS_POL_GUI
   ;***STEP 3.B TAB*************************************************************
   wS3Brepair           = WIDGET_BASE(wPreTabs, TITLE='Supersky Subtraction', /ROW, /ALIGN_CENTER)
   wS3BButtonBase       = WIDGET_BASE(wS3Brepair, /COLUMN, /ALIGN_LEFT, /BASE_ALIGN_LEFT)
-;  wS3B1Label           = WIDGET_LABEL(wS3BbuttonBase, VALUE=NEW_LINE()+'1. (Optional) Protect galaxy from supersky', YSIZE=30)
-;  wS3BMaskCheckBox     = CW_BGROUP(wS3BButtonBase, ['Mask Galaxy'], $
-;    /NONEXCLUSIVE, UNAME='GALAXY_MASK_CHECKBOX', EVENT_FUNCT='S3B_MASK_CHECK')
-;  wS3BMakeMask         = WIDGET_BUTTON(wS3BButtonBase, VALUE='Build Galaxy Mask', $
-;    SENSITIVE = 0, UNAME='S3B_BUILD_GALAXY_MASK', EVENT_PRO='S3B_BUILD_GALAXY_MASK')
   wS3B2Label           = WIDGET_LABEL(wS3BbuttonBase, VALUE='1. Flatten images with supersky procedure', YSIZE=30)
   wS3BSuperskyFlatten  = WIDGET_BUTTON(wS3BButtonBase, VALUE='Supersky Subtraction', $
     SENSITIVE = 1, UNAME='S3B_SUBTRACT_SUPERSKY', EVENT_PRO='S3B_SUBTRACT_SUPERSKY')
-;  wS3B3Label           = WIDGET_LABEL(wS3BbuttonBase, VALUE=NEW_LINE()+'3. Refine image astrometry', YSIZE=30)
-;  wS3BRefineAstrometry = WIDGET_BUTTON(wS3BButtonBase, VALUE='Refine Astrometry', EVENT_PRO='S3B_REFINE_ASTROMETRY')
-  wS3B3Label           = WIDGET_LABEL(wS3BbuttonBase, VALUE='Current files in S3 directory', YSIZE=30)
-  wS3BSwapFilesText    = WIDGET_TEXT(wS3BButtonBase, XSIZE=30, UNAME='S3B_S3_CURRENT_FILES')
-  wS3BSwapFilesButton  = WIDGET_BUTTON(wS3BButtonBase, VALUE='Swap Files', EVENT_PRO='S3B_SWAP_FILES')
 
   
   ;***STEP 4 TAB***************************************************************
@@ -200,23 +190,6 @@ PRO PEGS_POL_GUI
   wS4checkbox        = WIDGET_BUTTON(wS4checkboxBase, VALUE='Slider Inactive', $
     EVENT_PRO='S4_SELECT_PHOTOMETRY_MAGNITUDE_RANGE', UNAME='S4_SELECT_PHOTOMETRY_MAGNITUDE_RANGE')
   
-
-;  wS3AmagRangeSlider = CW_DUAL_SLIDER(wS3Arow2, minimum=0E, maximum=14E, value=FLOAT([1,13]), $
-;    XSIZE = 175, EVENT_PRO='S3A_MAGNITUDE_RANGE', UNAME='S3A_MAG_RANGE', TITLE='Magnitude Range', SENSITIVE = 0)
-;  wS3AcheckboxBase   = WIDGET_BASE(wS3Arow2, /NONEXCLUSIVE, /ALIGN_CENTER, /BASE_ALIGN_CENTER)
-;  wS3Acheckbox       = WIDGET_BUTTON(wS3AcheckboxBase, VALUE='Slider Inactive', $
-;    EVENT_PRO='S3A_SELECT_ASTROMETRY_MAGNITUDE_RANGE')
-
-  
-;  wS41Label          = WIDGET_LABEL(wS4buttonBase, VALUE=NEW_LINE()+'1. Determine dither boundaries', YSIZE=30)
-;  wS4DitherBounds    = WIDGET_BUTTON(wS4ButtonBase, VALUE='Find dither boundaries', EVENT_PRO='S4_DETERMINE_BOUNDARIES')
-;  wS42Label          = WIDGET_LABEL(wS4buttonBase, VALUE=NEW_LINE()+'1. Select the stars to use for photometry', YSIZE=30)
-;  wS4magRangeSlider  = CW_DUAL_SLIDER(wS4ButtonBase, minimum=0E, maximum=14E, value=FLOAT([1,13]), $
-;    XSIZE = 175, MAX_DIFFERENCE=2, EVENT_PRO='S4_MAGNITUDE_RANGE', UNAME='S4_MAG_RANGE', TITLE='Magnitude Range', SENSITIVE = 0)
-;  wS4SelectPhotStars = WIDGET_BUTTON(wS4buttonBase, VALUE='Select magnitude range', $
-;    EVENT_PRO='S4_SELECT_PHOTOMETRY_MAGNITUDE_RANGE')
-;  wS4SelectPhotStars = WIDGET_BUTTON(wS4ButtonBase, VALUE='Get Photometry Stars', EVENT_PRO='S4_GET_PHOTOMETRY_STARS')
-
   wS4row3            = WIDGET_BASE(wS4ButtonBase, /ROW)
   wS4label3          = WIDGET_LABEL(wS4row3, VALUE='3. Compute multi-aperture photometry', YSIZE=30)
   wS4PerformPhot     = WIDGET_BUTTON(wS4row3, VALUE='Perform Photometry', EVENT_PRO='S4_PERFORM_PHOTOMETRY')
@@ -339,7 +312,7 @@ PRO PEGS_POL_GUI
   
   ;Produce a display window that will be used for ALL analysis steps
   wImageWindow           = WIDGET_DRAW(wAnalysisWidgets, $
-    XSIZE=12, YSIZE=12, $
+    XSIZE=14, YSIZE=14, $
     UNAME='IMAGE_DISPLAY_WINDOW')
   
   ;***********************bottom pannel********************
