@@ -289,7 +289,19 @@ PRO S4_PERFORM_PHOTOMETRY, event
     ELSE IF groupStruc.NIRband EQ 'Ks' THEN magIndex = 7
   starMags   = ((groupStruc.starInfo[photStars]).(magIndex))
 ;  ap_rad     = 2.80                                           ; times FWHM
-  ap_rad     = 10E^(MIN(starMags)/60E)                        ; times FWHM
+  rad_factor = ALOG10(2.25E)/4E                               ; 4 mag brighter --> (2.25 x FWHM) larger apertures
+  rad_coeff  = 2.2*10.0^(10E*rad_factor)                      ; 10th mag star  -->  ap_rad = 2.2
+  ;
+  ; Now the question is whether this is also setup appropriately to handle DIMMER stars (e.g. 12.2-14.2 mag stars)
+  ; If not, then I need to shift the fiducial rad_coeff AND rad_factor so that 
+  ; 1) mag = 8.7  --> ap_rad = 3.50746
+  ; 2) mag = 12.2 to 14.2 --> ap_rad = whatever works for photometry.
+  ;
+;  STOP
+  ;
+  ;
+  ;
+  ap_rad     = rad_coeff*10E^(-MEAN(starMags)*rad_factor)     ; times FWHM
   clean_rad  = 3.6                                            ; times ap_rad times FWHM
   ap_vec     = [0.40, 0.475, 0.55, 0.625, 0.7, 0.775, $       ; times FWHM times ap_rad
     0.85, 0.925, 1.00, 1.050, 1.1, 1.150]
@@ -308,9 +320,6 @@ PRO S4_PERFORM_PHOTOMETRY, event
   groupNcount    = 0
   ;Loop thorugh each group
   FOR i = 0, groupStruc.numGroups - 1 DO BEGIN
-;    ; temporary debug
-;    if i lt 10 then continue
-;    
     IF groupStruc.groupFlags[i] EQ 0 THEN CONTINUE
     groupNcount++
     groupProgString = STRING(groupNcount, numGoodGroups, FORMAT='("Group ",I2," of ",I2)')
