@@ -108,7 +108,7 @@ IF stars THEN BEGIN
   
   FOR i = 0, numMasked - 1 DO BEGIN
     ;Compute a radius to mask bassed on the brightness of the star
-    maskRad  = 10E^(0.30E*MIN(magMaskStars)/magMaskStars[i])*starWid*pl_sc_convert
+    maskRad  = 10E^(0.50E*MIN(magMaskStars)/magMaskStars[i])*starWid*pl_sc_convert
     starMask = SQRT((xx - xMaskStars[i])^2 + $            ;Find pixels near this star
       (yy - yMaskStars[i])^2) LT maskRad
     mask = mask OR starMask                               ;Add those pixels to the mask
