@@ -117,7 +117,7 @@ PRO PEGS_POL_GUI
   
   ;***STEP 3.A TAB*************************************************************
   wS3Arepair          = WIDGET_BASE(wPreTabs, TITLE='Image Astrometry', /ROW)
-  wS3AButtonBase      = WIDGET_BASE(wS3Arepair, /COLUMN, /ALIGN_LEFT, /BASE_ALIGN_LEFT)
+  wS3AbuttonBase      = WIDGET_BASE(wS3Arepair, /COLUMN, /ALIGN_LEFT, /BASE_ALIGN_LEFT)
   
 ;  wS3Arow1            = WIDGET_BASE(wS3AbuttonBase, /ROW)
 ;  wS3Alabel1          = WIDGET_LABEL(wS3Arow1, VALUE='1. Number of files with failed astrometry')
@@ -143,7 +143,6 @@ PRO PEGS_POL_GUI
   wS3AsaveRejectBase  = WIDGET_BASE(wS3APerformAstrBase, /ROW)
   wS3ARejectAstro     = WIDGET_BUTTON(wS3AsaveRejectBase, VALUE='Reject image', UNAME='S3A_REJECT_IMAGE', SENSITIVE=0)
   wS3ASaveProgress    = WIDGET_BUTTON(wS3AsaveRejectBase, VALUE='Save and Stop', UNAME='S3A_SAVE_PROGRESS', SENSITIVE=0)
-;  wS3Aspace           = WIDGET_LABEL(wS3Arow3, VALUE='')
   
   wS3Arow4            = WIDGET_BASE(wS3AbuttonBase, /ROW)
   wS3Alabel4          = WIDGET_LABEL(wS3Arow4, VALUE = '3. Check Astrometry')
@@ -155,7 +154,6 @@ PRO PEGS_POL_GUI
   wS3Arow5            = WIDGET_BASE(wS3AbuttonBase, /ROW)
   wS3Alabel5          = WIDGET_LABEL(wS3Arow5, VALUE='Solved astrometry information')
   wS3AinfoBase        = WIDGET_BASE(wS3Arow5, COLUMN=2, UNAME='S3A_ASTROMETRY_BASE')
-;  wAstrometryTextBase = WIDGET_BASE(wS3AinfoBase, COLUMN=2)
   wCenterRALabel      = WIDGET_LABEL(wS3AinfoBase, VALUE='RA')
   wCenterRAText       = WIDGET_TEXT(wS3AinfoBase, XSIZE=14, UNAME='S3A_RA_TEXT')
   wPlateScaleLabel    = WIDGET_LABEL(wS3AinfoBase, VALUE='arcsec/pix')
@@ -167,13 +165,31 @@ PRO PEGS_POL_GUI
   
   
   ;***STEP 3.B TAB*************************************************************
-  wS3Brepair           = WIDGET_BASE(wPreTabs, TITLE='Supersky Subtraction', /ROW, /ALIGN_CENTER)
-  wS3BButtonBase       = WIDGET_BASE(wS3Brepair, /COLUMN, /ALIGN_LEFT, /BASE_ALIGN_LEFT)
-  wS3B2Label           = WIDGET_LABEL(wS3BbuttonBase, VALUE='1. Flatten images with supersky procedure', YSIZE=30)
-  wS3BSuperskyFlatten  = WIDGET_BUTTON(wS3BButtonBase, VALUE='Supersky Subtraction', $
+  wS3Bsupersky         = WIDGET_BASE(wPreTabs, TITLE='Supersky Subtraction', /ROW, /ALIGN_CENTER)
+  wS3BbuttonBase       = WIDGET_BASE(wS3Bsupersky, /COLUMN, /ALIGN_LEFT, /BASE_ALIGN_LEFT)
+
+  wS3Brow1             = WIDGET_BASE(wS3BbuttonBase, /ROW)
+  wS3Blabel1           = WIDGET_LABEL(wS3Brow1, VALUE='1. Set Mask Threshold')
+  wS3BthresholdSlider  = CW_FSLIDER(wS3Brow1, minimum=17E, maximum=21E, value=19E, $
+    UNAME='S3B_MASKING_THRESHOLD', TITLE='Threshold (mag/arcsec^2)', /EDIT, FORMAT='(G19.4)')
+  wS3BredrawButton     = WIDGET_BUTTON(wS3Brow1, VALUE='Redraw', UNAME='S3B_REDRAW_MASK', EVENT_PRO='S3B_REDRAW_MASK')
+
+  wS3Brow2             = WIDGET_BASE(wS3BbuttonBase, /ROW)
+  wS3Blabel2           = WIDGET_LABEL(wS3Brow2, VALUE='2. Generate masked supersky flats', YSIZE=30)
+  wS3BGenerateSupersky = WIDGET_BUTTON(wS3Brow2, VALUE='Generate Supersky', $
+    SENSITIVE = 1, UNAME='S3B_GENERATE_SUPERSKY', EVENT_PRO='S3B_GENERATE_SUPERSKY')
+  
+;  wS3Brow3             = WIDGET_BASE(wS3BbuttonBase, /ROW)
+;  wS3BLabel3           = WIDGET_LABEL(wS3Brow3, VALUE='3. Repair residual supersky artifacts', YSIZE=30)
+;  wS3BRepairSupersky   = WIDGET_BUTTON(wS3Brow3, VALUE='Repiar Supersky', $
+;    SENSITIVE = 1, UNAME='S3B_REPAIR_SUPERSKY', EVENT_PRO='S3B_REPAIR_SUPERSKY')
+  
+  wS3Brow3             = WIDGET_BASE(wS3BbuttonBase, /ROW)
+  wS3Blabel3           = WIDGET_LABEL(wS3Brow3, VALUE='3. Subtract supersky flats', YSIZE=30)
+  wS3BSubtractSupersky = WIDGET_BUTTON(wS3Brow3, VALUE='Subtract Supersky', $
     SENSITIVE = 1, UNAME='S3B_SUBTRACT_SUPERSKY', EVENT_PRO='S3B_SUBTRACT_SUPERSKY')
 
-  
+
   ;***STEP 4 TAB***************************************************************
   wS4photometry      = WIDGET_BASE(wPreTabs, TITLE='Photometry', /ROW)
   wS4ButtonBase      = WIDGET_BASE(wS4photometry, /COLUMN, /ALIGN_LEFT, /BASE_ALIGN_LEFT)
@@ -312,7 +328,7 @@ PRO PEGS_POL_GUI
   
   ;Produce a display window that will be used for ALL analysis steps
   wImageWindow           = WIDGET_DRAW(wAnalysisWidgets, $
-    XSIZE=14, YSIZE=14, $
+    XSIZE=10, YSIZE=10, $
     UNAME='IMAGE_DISPLAY_WINDOW')
   
   ;***********************bottom pannel********************
@@ -356,6 +372,7 @@ PRO PEGS_POL_GUI
   AlignColumns, wLoadSummaryBase
   AlignColumns, wS2ButtonBase
   AlignColumns, wS3AbuttonBase
+  AlignColumns, wS3BbuttonBase
   AlignColumns, wS4ButtonBase
   AlignColumns, wS3Rebin
   AlignColumns, wS3Adaptive
