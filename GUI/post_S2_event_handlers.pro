@@ -49,10 +49,13 @@ PRO S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
     
     ;Extract astrometry from the display image header
     EXTAST, displayHead, dispAstr
+    EXTAST, groupStruc.displayHeader, astr2MASS
     
     ;Oplot the image boundaries and stars
-    AD2XY, groupStruc.starInfo.RAJ2000, groupStruc.starInfo.DEJ2000,$   ;Convert star positions to pixel coordinates
+    AD2XY, groupStruc.starInfo.RAJ2000, groupStruc.starInfo.DEJ2000, $    ;Convert star positions to pixel coordinates
       dispAstr, xStars, yStars
+    AD2XY, groupStruc.starInfo.RAJ2000, groupStruc.starInfo.DEJ2000, $
+      astr2MASS, x2MASS, y2MASS
     
     ;Restrict stars to those well within the image
     starsInRange = xStars GT 50 AND $
@@ -75,8 +78,8 @@ PRO S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
       sz2MASS       = SIZE(groupStruc.displayImage, /DIMENSIONS)          ;Get the size of the displayImage
       MAKE_2D, FINDGEN(sz2MASS[0]), FINDGEN(sz2MASS[1]), xx2MASS, yy2MASS ;Make a 2D array for all image pixel locations
       FOR i = 0, numStars - 1 DO BEGIN                                    ;Loop through each of the preliminary star selections
-        distFromStar     = SQRT((xx2MASS - xStars[i])^2E + $              ;Compute the distance from each star
-          (yy2MASS - yStars[i])^2E)
+        distFromStar     = SQRT((xx2MASS - x2MASS[i])^2E + $              ;Compute the distance from each star
+          (yy2MASS - y2MASS[i])^2E)
         starsNearMask[i] = TOTAL((distFromStar LT 5) AND mask2MASS) GE 1 ;Check if the star is within 10 pixels of the mask
       ENDFOR
       
