@@ -246,85 +246,109 @@ PRO PEGS_POL_GUI
   wRotAngleLabel      = WIDGET_LABEL(wAstrometryTextBase, VALUE='Rot. Angle (deg.)')
   wRotAngleText       = WIDGET_TEXT(wAstrometryTextBase, XSIZE=20, UNAME='ROT_ANGLE')
   
-  wPost1Label3        = WIDGET_LABEL(wPost1, VALUE=NEW_LINE()+'3. Final photometric scaling', YSIZE=30)
-  wPhotometry         = WIDGET_BUTTON(wPost1, VALUE='Start Photometry', EVENT_PRO='S1_FINAL_PHOTOMETRY')
-  
   ;***STEP 2 TAB***************************************************************
-  wStep2            = WIDGET_BASE(wPostTabs, TITLE='Rotate Stokes Images', /COLUMN, /BASE_ALIGN_CENTER)
-  wS2galPAlabel     = WIDGET_LABEL(wStep2, VALUE='Galaxy PA (degrees CCW)')
-  wS2galPAtext      = WIDGET_TEXT(wStep2, XSIZE=20, UNAME='GALAXY_PA')
-  wS2galCenterBase  = WIDGET_BASE(wStep2, COLUMN=2)  
-  wS2galXlabel      = WIDGET_LABEL(wS2galCenterBase, VALUE='Galaxy X Center (pix)')
-  wS2galXtext       = WIDGET_TEXT(wS2galCenterBase, XSIZE=20, UNAME='GALAXY_X_PIXEL')
-  wS2galYlabel      = WIDGET_LABEL(wS2galCenterBase, VALUE='Galaxy Y Center (pix)')
-  wS2galYtext       = WIDGET_TEXT(wS2galCenterBase, XSIZE=20, UNAME='GALAXY_Y_PIXEL')
+  wPost2                = WIDGET_BASE(wPostTabs, TITLE='Calibrate Photometry', /COLUMN, /ALIGN_LEFT, /BASE_ALIGN_LEFT)
+  wS2row1               = WIDGET_BASE(wPost2, /ROW)
+  wS2label1             = WIDGET_LABEL(wS2row1, VALUE='1. Select photometry stars', YSIZE=30)
+  wS2magRangeSlider     = CW_DUAL_SLIDER(wS2row1, minimum=0E, maximum=14E, value=FLOAT([1,13]), $
+    XSIZE = 175, MAX_DIFFERENCE=5, EVENT_PRO='S2_MAGNITUDE_RANGE', UNAME='S2_MAG_RANGE', TITLE='Magnitude Range', SENSITIVE = 0)
+  wS2sliderCheckboxBase = WIDGET_BASE(wS2row1, /NONEXCLUSIVE, /ALIGN_CENTER, /BASE_ALIGN_CENTER)
+  wS2sliderCheckbox     = WIDGET_BUTTON(wS2sliderCheckboxBase, VALUE='Slider Inactive', $
+    EVENT_PRO='S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE', UNAME='S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE')
 
-  wS2blank          = WIDGET_LABEL(wStep2, VALUE=' ')
-  wS2cheCkBoxBase   = WIDGET_BASE(wStep2, /NONEXCLUSIVE)
-  wS2checkBox       = WIDGET_BUTTON(wS2checkBoxBase, VALUE='Use Model Values.', $
-    UNAME='S2_USE_MODEL_VALUES', EVENT_PRO='S2_USE_MODEL_VALUES')
+  wPost2Label1         = WIDGET_LABEL(wPost2, VALUE=NEW_LINE()+'2. Measure instrumental photometry', YSIZE=30)
+  wMeasurePhotometry   = WIDGET_BUTTON(wPost2, VALUE='Measure Photometry', EVENT_PRO='S2_MEASURE_PHOTOMETRY')
+
+  wS2blank             = WIDGET_LABEL(wPost2, VALUE=' ')
+  wS2pathCheckBoxBase  = WIDGET_BASE(wPost2, /NONEXCLUSIVE, /ALIGN_LEFT, /BASE_ALIGN_CENTER)
+  wS2pathCheckbox      = WIDGET_BUTTON(wS2pathCheckboxBase, VALUE='Use a second NIR band to compute color correction', $
+    EVENT_PRO='S2_USE_2BAND_PHOTOMETRY', UNAME='S2_USE_2BAND_PHOTOMETRY')
   
-  wS2rotPAlabel     = WIDGET_LABEL(wStep2, VALUE='Rotation Angle (degrees CCW)')
-  wS2rotPAtext      = WIDGET_TEXT(wStep2, XSIZE=20, /EDITABLE, UNAME='ROTATION_ANGLE')
-  wS2rotCenterBase  = WIDGET_BASE(wStep2, COLUMN=2)  
-  wS2rotXlabel      = WIDGET_LABEL(wS2rotCenterBase, VALUE='Rotation X Center (pix)')
-  wS2rotXtext       = WIDGET_TEXT(wS2rotCenterBase, XSIZE=20, /EDITABLE, UNAME='ROTATION_X_PIXEL')
-  wS2rotYlabel      = WIDGET_LABEL(wS2rotCenterBase, VALUE='Rotation Y Center (pix)')
-  wS2rotYtext       = WIDGET_TEXT(wS2rotCenterBase, XSIZE=20, /EDITABLE, UNAME='ROTATION_Y_PIXEL')
-  wS2rotateImages   = WIDGET_BUTTON(wStep2, VALUE='Rotate Images', EVENT_PRO='S2_ROTATE_IMAGES')
+  wS2_2ndBandRow       = WIDGET_BASE(wPost2, /ROW)
+  wS2_pathTextBox      = WIDGET_TEXT(ws2_2ndBandRow, XSIZE=50, /EDITABLE, SENSITIVE=0, UNAME='2ND_BAND_PATH')
+  wS2_pathBrowseButton = WIDGET_BUTTON(wS2_2ndBandRow, VALUE='Browse...', $
+    UNAME='S2_BROWSE_FOR_2ND_BAND', EVENT_PRO='S2_BROWSE_FOR_2ND_BAND', SENSITIVE=0)
+
+  wPost2Label2         = WIDGET_LABEL(wPost2, VALUE=NEW_LINE()+'3. Calibrate photometry to 2MASS', YSIZE=30)
+  wCalibratePhotometry = WIDGET_BUTTON(wPost2, VALUE='Calibrate Photometry', EVENT_PRO='S2_CALIBRATE_PHOTOMETRY')
+
   
   ;***STEP 3 TAB***************************************************************
-  wStep3            = WIDGET_BASE(wPostTabs, TITLE='Smooth and/or Rebin', /COLUMN)
-  wS3ImageLabel     = WIDGET_LABEL(wStep3, VALUE='Select the images on which to operate')
-  wS3ImageBase      = WIDGET_BASE(wStep3, /ROW, /EXCLUSIVE, EVENT_PRO='S3_SELECT_INPUT_IMAGES', UNAME='S3_SELECT_INPUT_IMAGES')
-  wS3OriginalButton = WIDGET_BUTTON(wS3ImageBase, VALUE='Original images', UNAME='S3_ORIGINAL_IMAGES')
-  wS3RotatedButton  = WIDGET_BUTTON(wS3ImageBase, VALUE='Rotated images', UNAME='S3_ROTATED_IMAGES')
-  wS3MethodLabel    = WIDGET_LABEL(wStep3, VALUE='Select which processing method to use')
-  wS3MethodTabs     = WIDGET_TAB(wStep3, LOCATION=0, EVENT_PRO='S3_SELECT_PROCESSING_METHOD', UNAME='S3_METHOD_TABS')
-  WIDGET_CONTROL, wS3MethodTabs, SET_UVALUE=0
+  wPost3            = WIDGET_BASE(wPostTabs, TITLE='Rotate Stokes I', /COLUMN, /BASE_ALIGN_CENTER)
+;  wS3galPAlabel     = WIDGET_LABEL(wPost3, VALUE='Galaxy PA (degrees CCW)')
+;  wS3galPAtext      = WIDGET_TEXT(wPost3, XSIZE=20, UNAME='GALAXY_PA')
+;  wS3galCenterBase  = WIDGET_BASE(wPost3, COLUMN=2)  
+;  wS3galXlabel      = WIDGET_LABEL(wS3galCenterBase, VALUE='Galaxy X Center (pix)')
+;  wS3galXtext       = WIDGET_TEXT(wS3galCenterBase, XSIZE=20, UNAME='GALAXY_X_PIXEL')
+;  wS3galYlabel      = WIDGET_LABEL(wS3galCenterBase, VALUE='Galaxy Y Center (pix)')
+;  wS3galYtext       = WIDGET_TEXT(wS2galCenterBase, XSIZE=20, UNAME='GALAXY_Y_PIXEL')
+
+  wS3blank          = WIDGET_LABEL(wPost3, VALUE=' ')
+  wS3checkBoxBase   = WIDGET_BASE(wPost3, /NONEXCLUSIVE)
+  wS3checkBox       = WIDGET_BUTTON(wS3checkBoxBase, VALUE='Use Galaxy Model Values', $
+    UNAME='S3_USE_MODEL_VALUES', EVENT_PRO='S3_USE_MODEL_VALUES')
+  
+  wS3rotPAlabel     = WIDGET_LABEL(wPost3, VALUE='Rotation Angle (degrees CCW)')
+  wS3rotPAtext      = WIDGET_TEXT(wPost3, XSIZE=20, /EDITABLE, UNAME='ROTATION_ANGLE')
+  wS3rotCenterBase  = WIDGET_BASE(wPost3, COLUMN=2)  
+  wS3rotXlabel      = WIDGET_LABEL(wS3rotCenterBase, VALUE='Rotation X Center (pix)')
+  wS3rotXtext       = WIDGET_TEXT(wS3rotCenterBase, XSIZE=20, /EDITABLE, UNAME='ROTATION_X_PIXEL')
+  wS3rotYlabel      = WIDGET_LABEL(wS3rotCenterBase, VALUE='Rotation Y Center (pix)')
+  wS3rotYtext       = WIDGET_TEXT(wS3rotCenterBase, XSIZE=20, /EDITABLE, UNAME='ROTATION_Y_PIXEL')
+  wS3rotateImages   = WIDGET_BUTTON(wPost3, VALUE='Rotate Image', EVENT_PRO='S3_ROTATE_IMAGE')
+  
+  ;***STEP 3 TAB***************************************************************
+  wPost4            = WIDGET_BASE(wPostTabs, TITLE='Smooth and/or Rebin', /COLUMN)
+  wS4ImageLabel     = WIDGET_LABEL(wPost4, VALUE='Select the images on which to operate')
+  wS4ImageBase      = WIDGET_BASE(wPost4, /ROW, /EXCLUSIVE, EVENT_PRO='S4_SELECT_INPUT_IMAGES', UNAME='S4_SELECT_INPUT_IMAGES')
+  wS4OriginalButton = WIDGET_BUTTON(wS4ImageBase, VALUE='Original images', UNAME='S4_ORIGINAL_IMAGES')
+  wS4RotatedButton  = WIDGET_BUTTON(wS4ImageBase, VALUE='Rotated images', UNAME='S4_ROTATED_IMAGES')
+  wS4MethodLabel    = WIDGET_LABEL(wPost4, VALUE='Select which processing method to use')
+  wS4MethodTabs     = WIDGET_TAB(wPost4, LOCATION=0, EVENT_PRO='S4_SELECT_PROCESSING_METHOD', UNAME='S4_METHOD_TABS')
+  WIDGET_CONTROL, wS4MethodTabs, SET_UVALUE=0
 
 
-  wS3Rebin            = WIDGET_BASE(wS3MethodTabs, TITLE='Integer Pixel Rebin', /COLUMN)
-  wS3RebinNumPixBase  = WIDGET_BASE(wS3Rebin, /ROW)
-  wS3RebinNumPixLabel = WIDGET_LABEL(wS3RebinNumPixBase, VALUE='Number of pixels to rebin')
-  wS3RebinNumPix      = WIDGET_TEXT(wS3RebinNumPixBase, XSIZE=8, /EDITABLE, UNAME='REBIN_PIXELS', EVENT_PRO='S3_SET_REBIN_PIXELS')
-  wS3RebinOldPSbase   = WIDGET_BASE(wS3Rebin, /ROW)
-  wS3RebinOldPSlabel  = WIDGET_LABEL(wS3RebinOldPSbase, VALUE='Old Plate Scale')
-  wS3RebinOldPS       = WIDGET_TEXT(wS3RebinOldPSbase, XSIZE=8, UNAME='OLD_PLATE_SCALE')
-  wS3RebinNewPSbase   = WIDGET_BASE(wS3Rebin, /ROW)
-  wS3RebinNewPSlabel  = WIDGET_LABEL(wS3RebinNewPSbase, VALUE='New Plate Scale')
-  wS3RebinNewPS       = WIDGET_TEXT(wS3RebinNewPSbase, XSIZE=8, UNAME='NEW_PLATE_SCALE')
+  wS4Rebin            = WIDGET_BASE(wS4MethodTabs, TITLE='Integer Pixel Rebin', /COLUMN)
+  wS4RebinNumPixBase  = WIDGET_BASE(wS4Rebin, /ROW)
+  wS4RebinNumPixLabel = WIDGET_LABEL(wS4RebinNumPixBase, VALUE='Number of pixels to rebin')
+  wS4RebinNumPix      = WIDGET_TEXT(wS4RebinNumPixBase, XSIZE=8, /EDITABLE, UNAME='REBIN_PIXELS', EVENT_PRO='S4_SET_REBIN_PIXELS')
+  wS4RebinOldPSbase   = WIDGET_BASE(wS4Rebin, /ROW)
+  wS4RebinOldPSlabel  = WIDGET_LABEL(wS4RebinOldPSbase, VALUE='Old Plate Scale')
+  wS4RebinOldPS       = WIDGET_TEXT(wS4RebinOldPSbase, XSIZE=8, UNAME='OLD_PLATE_SCALE')
+  wS4RebinNewPSbase   = WIDGET_BASE(wS4Rebin, /ROW)
+  wS4RebinNewPSlabel  = WIDGET_LABEL(wS4RebinNewPSbase, VALUE='New Plate Scale')
+  wS4RebinNewPS       = WIDGET_TEXT(wS4RebinNewPSbase, XSIZE=8, UNAME='NEW_PLATE_SCALE')
   
   
-  wS3Adaptive         = WIDGET_BASE(wS3MethodTabs, TITLE='Adaptive Mesh', /COLUMN)
-  wS3smallestBinBase  = WIDGET_BASE(wS3Adaptive, /ROW)
-  wS3smallestBinLabel = WIDGET_LABEL(wS3smallestBinBase, VALUE='Smallest rebinning size')
-  wS3smallestBin      = WIDGET_TEXT(wS3smallestBinBase, XSIZE=6, /EDITABLE, $
-    UNAME='SMALLEST_MESH_BIN', EVENT_PRO='S3_SET_SMALLEST_MESH_BIN')
-  wS3numLevelsBase    = WIDGET_BASE(wS3Adaptive, /ROW)
-  wS3numLevelsLabel   = WIDGET_LABEL(wS3numLevelsBase, VALUE='Number of Rebin Levels')
-  wS3numLevels        = WIDGET_TEXT(wS3numLevelsBase, XSIZE=6, /EDITABLE, $
-    UNAME='NUMBER_REBIN_LEVELS', EVENT_PRO='S3_SET_NUMBER_REBIN_LEVELS')
-  wS3SNRcutoffBase    = WIDGET_BASE(wS3Adaptive, /ROW)
-  wS3SNRcutoffLabel   = WIDGET_LABEL(wS3SNRcutoffBase, VALUE='Minimum allowable SNR')
-  wS3SNRcutoff        = WIDGET_TEXT(wS3SNRcutoffBase, XSIZE=6, /EDITABLE, $
-    UNAME='MINIMUM_MESH_SNR', EVENT_PRO='S3_SET_MINIMUM_MESH_SNR')
+  wS4Adaptive         = WIDGET_BASE(wS4MethodTabs, TITLE='Adaptive Mesh', /COLUMN)
+  wS4smallestBinBase  = WIDGET_BASE(wS4Adaptive, /ROW)
+  wS4smallestBinLabel = WIDGET_LABEL(wS4smallestBinBase, VALUE='Smallest rebinning size')
+  wS4smallestBin      = WIDGET_TEXT(wS4smallestBinBase, XSIZE=6, /EDITABLE, $
+    UNAME='SMALLEST_MESH_BIN', EVENT_PRO='S4_SET_SMALLEST_MESH_BIN')
+  wS4numLevelsBase    = WIDGET_BASE(wS4Adaptive, /ROW)
+  wS4numLevelsLabel   = WIDGET_LABEL(wS4numLevelsBase, VALUE='Number of Rebin Levels')
+  wS4numLevels        = WIDGET_TEXT(wS4numLevelsBase, XSIZE=6, /EDITABLE, $
+    UNAME='NUMBER_REBIN_LEVELS', EVENT_PRO='S4_SET_NUMBER_REBIN_LEVELS')
+  wS4SNRcutoffBase    = WIDGET_BASE(wS4Adaptive, /ROW)
+  wS4SNRcutoffLabel   = WIDGET_LABEL(wS4SNRcutoffBase, VALUE='Minimum allowable SNR')
+  wS4SNRcutoff        = WIDGET_TEXT(wS4SNRcutoffBase, XSIZE=6, /EDITABLE, $
+    UNAME='MINIMUM_MESH_SNR', EVENT_PRO='S4_SET_MINIMUM_MESH_SNR')
   
   
-  wS3Smooth              = WIDGET_BASE(wS3MethodTabs, TITLE='Gaussian Smooth and Rebin', /COLUMN)
-  wS3KernelWidthBase     = WIDGET_BASE(wS3Smooth, /ROW)
-  wS3KernelWidthLabel    = WIDGET_LABEL(wS3KernelWidthBase, VALUE='Kernel FWHM (arcsec)')
-  wS3KernelWidth         = WIDGET_TEXT(wS3KernelWidthBase, XSIZE=6, /EDITABLE)
-  wS3KernelWidthLabelPix = WIDGET_LABEL(wS3KernelWidthBase, VALUE='Kernel FWHM (pixels)')
-  wS3KernelWidthPix      = WIDGET_TEXT(wS3KernelWidthBase, XSIZE=6)
-  wS3SamplePitchBase     = WIDGET_BASE(wS3Smooth, /ROW)
-  wS3SamplePitchLabel    = WIDGET_LABEL(wS3SamplePitchBase, VALUE='Resample pitch (arcsec)')
-  wS3SamplePitch         = WIDGET_TEXT(wS3SamplePitchBase, XSIZE=6, /EDITABLE)
-  wS3SamplePitchLabelPix = WIDGET_LABEL(wS3SamplePitchBase, VALUE='Resample pitch (pixels)')
-  wS3SamplePitchPixl     = WIDGET_TEXT(wS3SamplePitchBase, XSIZE=6)
+  wS4Smooth              = WIDGET_BASE(wS4MethodTabs, TITLE='Gaussian Smooth and Rebin', /COLUMN)
+  wS4KernelWidthBase     = WIDGET_BASE(wS4Smooth, /ROW)
+  wS4KernelWidthLabel    = WIDGET_LABEL(wS4KernelWidthBase, VALUE='Kernel FWHM (arcsec)')
+  wS4KernelWidth         = WIDGET_TEXT(wS4KernelWidthBase, XSIZE=6, /EDITABLE)
+  wS4KernelWidthLabelPix = WIDGET_LABEL(wS4KernelWidthBase, VALUE='Kernel FWHM (pixels)')
+  wS4KernelWidthPix      = WIDGET_TEXT(wS4KernelWidthBase, XSIZE=6)
+  wS4SamplePitchBase     = WIDGET_BASE(wS4Smooth, /ROW)
+  wS4SamplePitchLabel    = WIDGET_LABEL(wS4SamplePitchBase, VALUE='Resample pitch (arcsec)')
+  wS4SamplePitch         = WIDGET_TEXT(wS4SamplePitchBase, XSIZE=6, /EDITABLE)
+  wS4SamplePitchLabelPix = WIDGET_LABEL(wS4SamplePitchBase, VALUE='Resample pitch (pixels)')
+  wS4SamplePitchPixl     = WIDGET_TEXT(wS4SamplePitchBase, XSIZE=6)
 
-  wS3StartBase           = WIDGET_BASE(wStep3, /COLUMN)
-  wS3StartButon          = WIDGET_BUTTON(wS3StartBase, VALUE='Start Processing', EVENT_PRO='S3_START_PROCESSING')
+  wS4StartBase           = WIDGET_BASE(wPost4, /COLUMN)
+  wS4StartButon          = WIDGET_BUTTON(wS4StartBase, VALUE='Start Processing', EVENT_PRO='S4_START_PROCESSING')
   
   ;Produce a display window that will be used for ALL analysis steps
   wImageWindow           = WIDGET_DRAW(wAnalysisWidgets, $
@@ -360,13 +384,14 @@ PRO PEGS_POL_GUI
   WIDGET_CONTROL, wS2contourSlider, set_value=FLOAT([1,3])
   WIDGET_CONTROL, wS3AmagRangeSlider, set_value=FLOAT([1,13])         ;Set the dual sliders to initial values
   WIDGET_CONTROL, wS4magRangeSlider, set_value=FLOAT([1,13])
+  WIDGET_CONTROL, wS2magRangeSlider, set_value=FLOAT([8,13])
 
   ;Set default masking procedure (ignore IRAC image based PA)
   WIDGET_CONTROL, wS2IRAC_PA_checkbox, SET_UVALUE=0                   ;Default ignore IRAC PA
   
   ;Set the default AMR image set to the unrotated images
-  WIDGET_CONTROL, wS3OriginalButton, /SET_BUTTON
-  WIDGET_CONTROL, wS3ImageBase, SET_UVALUE=0
+  WIDGET_CONTROL, wS4OriginalButton, /SET_BUTTON
+  WIDGET_CONTROL, wS4ImageBase, SET_UVALUE=0
   
   ;Align the button bases
   AlignColumns, wLoadSummaryBase
@@ -374,9 +399,9 @@ PRO PEGS_POL_GUI
   AlignColumns, wS3AbuttonBase
   AlignColumns, wS3BbuttonBase
   AlignColumns, wS4ButtonBase
-  AlignColumns, wS3Rebin
-  AlignColumns, wS3Adaptive
-  AlignColumns, wS3Smooth
+  AlignColumns, wS4Rebin
+  AlignColumns, wS4Adaptive
+  AlignColumns, wS4Smooth
 
   XMANAGER, 'PEGS_POL_GUI', wTLB, /NO_BLOCK; CATCH = 0, NO_BLOCK = 0
 

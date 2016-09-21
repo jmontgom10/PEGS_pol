@@ -124,7 +124,6 @@ FUNCTION COG_APER, image, xStars, yStars, apr, skyradii, badpix
 END
 
 FUNCTION GENERATE_COG, image, xStars, yStars, apr, skyradii, badpix
-
   ;This program uses a least squares minimization method (via the mpfit.pro package)
   ;to determine the best fitting King model parameters
   ;based on the stars in the image.
@@ -136,14 +135,19 @@ FUNCTION GENERATE_COG, image, xStars, yStars, apr, skyradii, badpix
  
   ;Starting parameters taken from Stetson (1990)
   start_params = [1.5, 1.2, 0.150, 0.5, 0.9]
+
+  ;Initalize a parameter structure
   numPars      = N_ELEMENTS(start_params)
   parinfo      = REPLICATE({value:0, limited:[0,0], limits:[0.0,0.0], mpside:0, fixed:0}, numPars)
+
+  ;Create a structure to store COG residual function arguments
   functargs    = {$
     r0:apr[0],$
     radii:apr[1:*], $
     delMags:COGphotometry.deltaMags,$
     ERR:COGphotometry.sigDeltaMags}
 
+  ;Define which parameters are limited and what those limits are
   parinfo[0].limited = [1,1]
   parinfo[0].limits  = [0.5, 5.0]
   parinfo[1].limited = [1,0]
@@ -155,6 +159,7 @@ FUNCTION GENERATE_COG, image, xStars, yStars, apr, skyradii, badpix
   parinfo[4].limited = [1,0]
   parinfo[4].limits  = [1E-3,10.0]
   
+  ;Compute chi-squared minimization parameter values
   kingParams  = MPFIT('COG_RESIDUALS', start_params, FUNCTARGS=functargs, $
     PARINF=parinfo, STATUS=status, ERRMSG=errmsg, /QUIET)
 

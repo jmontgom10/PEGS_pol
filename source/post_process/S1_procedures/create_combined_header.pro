@@ -28,7 +28,10 @@ FUNCTION GET_AVERAGE_DATE, headers
   nHeads  = N_TAGS(headers)
   dateArr = DBLARR(nHeads)
   FOR i = 0, nHeads - 1 DO BEGIN
-    dateArr[i] = DATE_CONV(SXPAR(headers.(i), 'DATE-OBS'))
+    ;Handle DATE-OBS vs. DATEOBS
+    tmpDate = SXPAR(headers.(i), 'DATE-OBS')
+    IF tmpDate EQ 0 THEN tmpDate = SXPAR(headers.(i), 'DATEOBS')
+    dateArr[i] = DATE_CONV(tmpDate)
   ENDFOR
   averageDate = DATE_CONV(MEAN(dateArr), 'FITS')
   RETURN, averageDate

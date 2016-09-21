@@ -98,9 +98,7 @@ PRO S4_MAGNITUDE_RANGE, event;, stash
 
   groupStruc.photStarFlags = (groupStruc.photStarFlags AND ~starsNearMask)
   
-  ;  SKY, groupStruc.displayImage, skyMode, skyNoise, /SILENT
   WSET, displayWindowIndex                                            ;Set that display window as active
-  ;  TVIM, groupStruc.displayImage, RANGE = skyMode + [-1, +100]*skyNoise
   
   useStarInds = WHERE(groupStruc.photStarFlags, numUse, $             ;Find the stars in the selected magnitude range
     COMPLEMENT = noUseStarInds, NCOMPLEMENT = numNoUse)

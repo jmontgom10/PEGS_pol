@@ -5,32 +5,32 @@ FUNCTION GET_OPTIMUM_APERTURES, image, xStars, yStars, starradii, skyradii, badp
 ;  ronois   = 3.1                                                     ;(ADU) This value is from GPIPS code "S4_PSF_fit"
 ;  badpix    = [-300L, 6000L]
 ;  badpix    = [-300L, 12000L]
+  
+;  x = xStars                                                          ;Alias the xPos vector
+;  y = yStars                                                          ;Alias the yPos vector
+;  
+;  saturated = TEST_SATURATED(image, x, y, $                           ;Test for saturated stars
+;    MAX(badpix), CEIL(SQRT(2)*starradii[1]))
+;  unSatInd = WHERE(~saturated, numStars)                              ;grab the Unsaturated indices
+  
+  ;Don't cull the star list, just the saturated star list for later use?
+;  x = x[unSatInd]                                                     ;Remove saturated stars from the list
+;  y = y[unSatInd]
 
-;  WINDOW, 0
+  ;Assume already tested for crowding
+;  crowdedStars = TEST_CROWDED(x, y, CEIL(2*starradii[1]))             ;Find crowded stars
+;  unCrowdInd   = WHERE(~crowdedStars, numUnCrowd)
+;  
+;  x = x[unCrowdInd]                                                   ;Remove the crowded stars from the list
+;  y = y[unCrowdInd]
+
+;  IF FLOAT(numUnCrowd)/FLOAT(numStars) LT 0.7 THEN BEGIN
+;    PRINT, "Star field is too crowded." + new_line() $
+;      + "Return and raise star cutoff"
+;    RETURN, -1
+;  ENDIF
   
-  x = xStars                                                          ;Alias the xPos vector
-  y = yStars                                                          ;Alias the yPos vector
-  
-  saturated = TEST_SATURATED(image, x, y, $                           ;Test for saturated stars
-    MAX(badpix), CEIL(SQRT(2)*starradii[1]))
-  unSatInd = WHERE(~saturated, numStars)                              ;grab the Unsaturated indices
-  
-  x = x[unSatInd]                                                     ;Remove saturated stars from the list
-  y = y[unSatInd]
-  
-  crowdedStars = TEST_CROWDED(x, y, CEIL(2*starradii[1]))             ;Find crowded stars
-  unCrowdInd   = WHERE(~crowdedStars, numUnCrowd)
-  
-  x = x[unCrowdInd]                                                   ;Remove the crowded stars from the list
-  y = y[unCrowdInd]
-  
-  IF FLOAT(numUnCrowd)/FLOAT(numStars) LT 0.7 THEN BEGIN
-    PRINT, "Star field is too crowded." + new_line() $
-      + "Return and raise star cutoff"
-    RETURN, -1
-  ENDIF
-  
-  nStars      = N_ELEMENTS(x)
+  nStars      = N_ELEMENTS(xStars)
   optimumAprs = FLTARR(nStars)
   FOR i = 0, nStars - 1 DO BEGIN
 ;    spanRad  = 3.0                                          ;Number of FWHM the aperture should span
@@ -47,7 +47,7 @@ FUNCTION GET_OPTIMUM_APERTURES, image, xStars, yStars, starradii, skyradii, badp
       SNRapr   = minRad + deltaRad*FINDGEN(12)
 
       ;Grab the aperture photometry
-      APER, image, x[i], y[i], $
+      APER, image, xStars[i], yStars[i], $
         flux, errap, sky, skyerr, phpadu, SNRapr, skyradii, badpix, /SILENT, /FLUX
       
       ;And use the result to compute the signal-to-noise ratio at each aperture
@@ -122,7 +122,7 @@ FUNCTION GET_OPTIMUM_APERTURES, image, xStars, yStars, starradii, skyradii, badp
     maximumRootInds = WHERE(maximumRoot, numMax)
     IF numMax GT 0 THEN BEGIN
       bestAprCandidates = roots[maximumRootInds]
-      APER, image, x[i], y[i], $
+      APER, image, xStars[i], yStars[i], $
         flux, errap, sky, skyerr, phpadu, bestAprCandidates, skyradii, badpix, /SILENT, /FLUX
       
       ;And use the result to compute the signal-to-noise ratio at each aperture
@@ -141,6 +141,10 @@ FUNCTION GET_OPTIMUM_APERTURES, image, xStars, yStars, starradii, skyradii, badp
     ;Save the final result to return to the user
     optimumAprs[i] = bestApr
   ENDFOR
+  
+  ; Find any stars that got skipped and mark them as bad
+  badStars = WHERE(optimumAprs LT 0.01, numBad)
+  IF numBad GT 0 THEN optimumAprs[badStars] = !VALUES.F_NAN
   
   RETURN, optimumAprs
 
