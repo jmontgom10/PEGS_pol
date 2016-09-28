@@ -1,4 +1,4 @@
-function jm_median_filtered_mean, array, DIMENSION = dimension
+function jm_median_filtered_mean, array, DIMENSION = dimension, CLIPSIG = clipsig
 ;
 ;   computes the median filtered mean value of the data in the
 ;   vec vector
@@ -11,6 +11,7 @@ function jm_median_filtered_mean, array, DIMENSION = dimension
 ;			      20100805  fixed bug for entry with scalar
 ;			      20130606  test for all inputs non-finite
 ;		JDM     20140821  re-write to work on entire stacks of images with IDL-8 array statstic capabilities.
+;		        20160923  add keyword to set final sigma threshold
 ;
 
 ;Test if the dimension keyword was set (default to dimension = 0),
@@ -19,6 +20,9 @@ if n_elements(dimension) eq 0 then dimension = 0
 if dimension GT size(array, /n_dimensions) then begin
   message, "DIMENSION keyword value must be less than the number of dimensions of 'array'", LEVEL = -1
 endif
+
+;Test if the CLIPSIG has been set. If not, then set to 3-sigma clipping
+if n_elements(clipsig) eq 0 then clipsig = 3.0
 
 if TOTAL(FINITE(array)) gt 0 then begin
   sz           = SIZE(array, /DIMENSIONS)                ;Grab the dimensionality of the array
@@ -34,6 +38,7 @@ if TOTAL(FINITE(array)) gt 0 then begin
   finiteMask     = FINITE(array)  ;Mark the finite elements of the array
   numPoints      = TOTAL(finiteMask, dimension) ;Count the number of usable elements along the DIMENSION axis
   scale          = REBIN([2.2], newShape, /SAMPLE);Initalize scale value at 2.2 (sigma)
+  scaleStep      = (clipsig - 2.2)/4.0
   FOR iloop = 0, 4 DO BEGIN
     ;Setup the coppied array and mask all the rejected values
     copyArr   = array                                     ;Copy the original array to restore original state
@@ -65,7 +70,7 @@ if TOTAL(FINITE(array)) gt 0 then begin
     numPoints1 = numPoints                                ;Store the old array of numPoints
     numPoints  = dimensionLen - TOTAL(mask, dimension)    ;Compute the new array of numPoints
     nextScale  = (numPoints NE numPoints1)                ;Determine where the number of valid points has changed
-    scale     += 0.2*nextScale                            ;Increment to the next scale value for locations needing it
+    scale     += scaleStep*nextScale                      ;Increment to the next scale value for locations needing it
     IF TOTAL(nextScale) EQ 0 THEN BREAK                   ;If no elements of numPoints have changed, then break
   ENDFOR
   
@@ -78,7 +83,7 @@ if TOTAL(FINITE(array)) gt 0 then begin
     
 ;  ;*********************************************************
 ;  ;This is an alternative algorithm, which simpy loops until
-;  ;the mask stops changign or 12 iterations arp performed...
+;  ;the mask stops changing or 12 iterations are performed...
 ;  ; ***THERE IS AN ADDITIONAL PROBLEM OF TRACKING WHICH
 ;  ; ***SCALING TO USE FOR EACH COLUMN...
 ;  ; ***COPY THE CODE ABOVE TO SOLVE THAT PROBLEM

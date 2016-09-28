@@ -2,7 +2,7 @@ PRO S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
   ;
   ; Event handler for the checkbox to activate/de-activate slider
   ;
-
+  
   WIDGET_CONTROL, event.ID, GET_UVALUE=displayStruc
   WIDGET_CONTROL, event.top, GET_UVALUE=groupStruc                    ;Retrieve the group summary structure
   wS2magRangeSlider    = WIDGET_INFO(event.top, FIND_BY_UNAME='S2_MAG_RANGE')
@@ -25,23 +25,23 @@ PRO S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
     WIDGET_CONTROL, displayWID, GET_VALUE = displayWindowIndex          ;Grab the display window index
     WSET, displayWindowIndex                                            ;Set that display window as active
     
-    ;Grab the name of the combined intensity image file
     intensityFile = FILE_SEARCH($                                       ;Read in the intensity image
-      groupStruc.analysis_dir + 'S11_Full_Field_Polarimetry', $
-       + 'MetaGroup*Intensity.fits', COUNT = nFiles)
+    groupStruc.analysis_dir + 'S11_Full_Field_Polarimetry', $
+    + '*_I.fits', COUNT = nFiles)
     
-    IF nFiles GT 1 THEN BEGIN
-      PRINT, 'TOO MANY FILES FOUND.'
-      STOP
-    ENDIF ELSE IF nFiles EQ 1 THEN BEGIN
-      displayImg = READFITS(intensityFile, displayHead)
-      sz      = SIZE(displayImg, /DIMENSIONS)
-      nx      = sz[0]
-      ny      = sz[1]
-    ENDIF ELSE BEGIN
-      PRINT, 'NO FILES FOUND.'
-      STOP
-    ENDELSE
+  IF nFiles GT 1 THEN BEGIN
+    PRINT, 'TOO MANY FILES FOUND.'
+    STOP
+  ENDIF ELSE IF nFiles EQ 1 THEN BEGIN
+    ; Read in and parse the image
+    displayImg = READFITS(intensityFile, displayHead, /SILENT)
+    sz           = SIZE(displayImg, /DIMENSIONS) ;Grab the dimensions of the image array
+    nx           = sz[0]
+    ny           = sz[1]
+  ENDIF ELSE BEGIN
+    PRINT, 'NO FILES FOUND.'
+    STOP
+  ENDELSE
     
     ;Redisplay the 2MASS image
     SKY, displayImg, skyMode, skyNoise, /SILENT
@@ -56,13 +56,13 @@ PRO S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
       dispAstr, xStars, yStars
     AD2XY, groupStruc.starInfo.RAJ2000, groupStruc.starInfo.DEJ2000, $
       astr2MASS, x2MASS, y2MASS
-    
+      
     ;Restrict stars to those well within the image
     starsInRange = xStars GT 50 AND $
-                   xStars LT nx - 51 AND $
-                   yStars GT 50 AND $
-                   yStars LT ny - 51
-    
+      xStars LT nx - 51 AND $
+      yStars GT 50 AND $
+      yStars LT ny - 51
+      
     ;Display star candidates
     greenColorInd = RGB_TO_DECOMPOSED([0,255,0])
     OPLOT, (xStars-1), (yStars-1), $                                      ;Show the user where the selected stars are
@@ -151,15 +151,15 @@ PRO S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
     ;Flag the stars to use
     IF groupStruc.NIRband EQ 'H' THEN magIndex = 5 $                    ;Setup the structure tag for this band
     ELSE IF groupStruc.NIRband EQ 'Ks' THEN magIndex = 7
-
+    
     ; Restrict stars to given photometric range
     groupStruc.photStarFlags = groupStruc.starInfo.(magIndex) GE state.value[0] $
       AND groupStruc.starInfo.(magIndex) LE state.value[1]
       
     ; Exclude stars at bad positions
     groupStruc.photStarFlags = (groupStruc.photStarFlags AND ~badStars)
-
-    ; Save the photometry flags to disk    
+    
+    ; Save the photometry flags to disk
     UPDATE_GROUP_SUMMARY, event, groupStruc, /SAVE                    ;Store the updated data to disk
     WIDGET_CONTROL, stateStorageWID, SET_UVALUE=state, /NO_COPY       ;Restore the dual-slider "state" variable
     
@@ -171,7 +171,7 @@ PRO S2_MAGNITUDE_RANGE, event;, stash
   ;
   ; Event handler for magnitude range slider
   ;
-
+  
   displayWID = WIDGET_INFO(event.top,FIND_BY_UNAME='IMAGE_DISPLAY_WINDOW');Grab the display window WID
   tlb_wid    = WIDGET_INFO(event.top,FIND_BY_UNAME='WID_BASE')        ;Grab the top-level-base WID
   wS2magRangeSlider = WIDGET_INFO(event.top, FIND_BY_UNAME='S2_MAG_RANGE')
@@ -195,7 +195,7 @@ PRO S2_MAGNITUDE_RANGE, event;, stash
   ; Restrict stars to given photometric range
   groupStruc.photStarFlags = groupStruc.starInfo.(magIndex) GE state.value[0] $
     AND groupStruc.starInfo.(magIndex) LE state.value[1]
-  
+    
   ; Exclude stars at bad positions
   groupStruc.photStarFlags = (groupStruc.photStarFlags AND ~badStars)
   
@@ -209,12 +209,10 @@ PRO S2_MAGNITUDE_RANGE, event;, stash
     astr, xStars, yStars
     
   IF numUse GT 0 THEN BEGIN
-    ;    greenColorInd = RGB_TO_DECOMPOSED([0,255,0])
     OPLOT, (xStars[useStarInds]-1), (yStars[useStarInds]-1), $        ;Show the user where the selected stars are
       PSYM = 6, COLOR = RGB_TO_DECOMPOSED([0,255,0])
   ENDIF
   IF numNoUse GT 0 THEN BEGIN
-    ;    redColorInd = RGB_TO_DECOMPOSED([255,0,0])
     OPLOT, (xStars[noUseStarInds]-1), (yStars[noUseStarInds]-1), $    ;Show the user where the unselected stars are
       PSYM = 6, COLOR = RGB_TO_DECOMPOSED([255,0,0])
   ENDIF
@@ -242,24 +240,22 @@ PRO S2_MEASURE_PHOTOMETRY, event
     'E_' + STRMID(groupStruc.NIRband,0,1) + 'MAG', INDEX = sigMagTag)
     
   intensityFile = FILE_SEARCH($                                       ;Read in the intensity image
-      groupStruc.analysis_dir + 'S11_Full_Field_Polarimetry', $
-       + 'MetaGroup*Intensity.fits', COUNT = nFiles)
+    groupStruc.analysis_dir + 'S11_Full_Field_Polarimetry', $
+    + '*_I.fits', COUNT = nFiles)
     
-    IF nFiles GT 1 THEN BEGIN
-      PRINT, 'TOO MANY FILES FOUND.'
-      STOP
-    ENDIF ELSE IF nFiles EQ 1 THEN BEGIN
-      ; Read in and parse the image
-      intensityImg  = READFITS(intensityFile, header, /SILENT)
-;      meanBkg       = SXPAR(header, 'PP4_SKY')  ;Grab the average background sky level
-;      intensityImg += meanBkg                   ;Add the background level back into the image
-      sz      = SIZE(intensityImg, /DIMENSIONS) ;Grab the dimensions of the image array
-      nx      = sz[0]
-      ny      = sz[1]
-    ENDIF ELSE BEGIN
-      PRINT, 'NO FILES FOUND.'
-      STOP
-    ENDELSE
+  IF nFiles EQ 0 THEN BEGIN
+    PRINT, 'NO FILES FOUND.'
+    STOP
+  ENDIF ELSE IF nFiles EQ 1 THEN BEGIN
+    ; Read in and parse the image
+    intensityImg = READFITS(intensityFile, header, /SILENT)
+    sz           = SIZE(intensityImg, /DIMENSIONS) ;Grab the dimensions of the image array
+    nx           = sz[0]
+    ny           = sz[1]
+  ENDIF ELSE IF nFile GT 1 THEN BEGIN
+    PRINT, 'TOO MANY FILES FOUND.'
+    STOP
+  ENDIF
   
   ;  apr      = 2.5*PSF_FWHM
   ;  skyradii = [1.5, 2.5]*apr
@@ -278,7 +274,7 @@ PRO S2_MEASURE_PHOTOMETRY, event
   starMags      = groupStruc.starInfo.(magTag)
   AD2XY, groupStruc.starInfo.RAJ2000, groupStruc.starinfo.DEJ2000, $  ;Convert 2MASS positions to (x,y) pixel coordinates
     astr, xStars, yStars
-  
+    
   ;****************************************************
   ;********* APERTURE PHOTOMETRY OF ALL STARS *********
   ;****************************************************
@@ -353,7 +349,7 @@ PRO S2_MEASURE_PHOTOMETRY, event
   PRINT_TEXT2, event, 'Computing aperatures at which photometric S/N is greatest for photometry each star'
   optimumAprs = GET_OPTIMUM_APERTURES(intensityImg, xPhot, yPhot, $
     starradii, skyradii, badpix)
-
+    
   ;Cull photometry stars to those with accurately determined "optimum apertures"
   useInds = WHERE(FINITE(optimumAprs) $             ;Determine which stars were well fit
     AND (optimumAprs GT 1) $
@@ -425,7 +421,7 @@ PRO S2_MEASURE_PHOTOMETRY, event
     instMags, $
     sigInstMags, $
     HEADER = photHeader
-
+    
   ;*******************************************************************
   ;******** NOW THAT EVERYTHING HAS BEEN COMPUTED, *******************
   ;******** LET'S SHOW THE USER WHAT WE FOUND.     *******************
@@ -459,7 +455,7 @@ PRO S2_MEASURE_PHOTOMETRY, event
   numRA   = [0,numRA,0]
   histDec = [MIN(histDec) - binSize, histDec, MAX(histDec) + binSize] ;Add a null element on either end of the histograms
   numDec  = [0,numDec,0]
-    
+  
   PLOT, histRA, numRA, PSYM=10, $                                     ;Plot the RA and Dec histograms
     THICK = 2, XTITLE = 'D RA (arcesc x 1E-6)', YTITLE = 'Number'
   PLOT, histDec, numDec, PSYM=10, $
@@ -536,84 +532,24 @@ PRO S2_MEASURE_PHOTOMETRY, event
   ;Reset plotting values
   !P.MULTI  = 0
   !X.MARGIN = xOriginal
-
-  ;I now have the (aperture corrected) instrumental magnitudes for this image.
-  ;Stop here and simply write them to the disk.
   
-;  magZP      = 25                                                     ;APER and NSTAR use 1ADU/sec = 25 mag
-;  magsMimir  = instMags - magZP                                       ;Convert to instrumental magnitudes
-;  mags2MASS  = photStarInfo.(magTag)                                  ;Grab the matched 2MASS magnitudes
-;  sig2MASS   = photStarInfo.(sigMagTag)                               ;Grab the 2MASS uncertainties
-;  delMags    = mags2MASS - magsMimir                                  ;Compute the magnitude differences
-;  sigDelMags = SQRT(sig2MASS^2 + sigInstMags^2)                       ;Compute the uncertainty in the magnitude difference
-;  ;  delFlux   = 10.0^(-0.4*delMags)                                     ;Convert differences to flux
-;  ;  MEANCLIP, delFlux, meanRelativeFlux, sigmaFlux, $                   ;Compute mean relative flux
-;  ;    CLIPSIG=3.0
-;  MEANCLIP, delMags, meanDelMag, sigmaDelMag, CLIPSIG = 3.0           ;Compute the mean magnitude offset
-;  keepInds = WHERE((abs(delMags - meanDelMag)/sigmaDelMag) LE 5.0)    ;Restrict magnitude offset to non-outliers...
-;  
-;  ;Get rid of all the outlier magnitudes and compute weighted average magnitude offset...
-;  delMags     = delMags[keepInds]
-;  sigDelMags  = sigDelMags[keepInds]
-;  wts         = 1.0/(sigDelMags^2)
-;  sigDelMag   = 1.0/TOTAL(wts)
-;  delMag      = sigDelMag*TOTAL(wts*delMags)
-;  
-;  delMag  = meanDelMag                                                ;Use the meanDelMag as the official offset
-;  magImg  = intensityImg                                              ;Alias the intensity image
-;  darkPix = WHERE(intensityImg LT 1E-6, numDark)
-;  IF numDark GT 0 THEN magImg[darkPix] = 1E-6                         ;Set bottom threshold
-;  magImg = -2.5*ALOG10(magImg) + $                                    ;Compute magnitude/arcsec^2 image
-;    delMag + 2.5*ALOG10(plateScale^2)
-;    
-;  delMagStr = 'Instrumental magnitude offset is ' + SIG_FIG_STRING(delMag, 3)
-;  PRINT_TEXT2, event, delMagStr
-;  
-;  magFile = groupStruc.analysis_dir + 'S11B_Combined_Images' $        ;Define path for save file
-;    + PATH_SEP() + 'mu.fits'
-;  WRITEFITS, magFile, magImg, header
-;  
-;  ;
-;  ;Band Lambda (µm)   Bandwidth (µm)  Fnu - 0 mag (Jy)  Flambda - 0 mag (W cm-2 µm-1)
-;  ;J  1.235 ± 0.006   0.162 ± 0.001   1594 ± 27.8       3.129E-13 ± 5.464E-15
-;  ;H  1.662 ± 0.009   0.251 ± 0.002   1024 ± 20.0       1.133E-13 ± 2.212E-15
-;  ;Ks 2.159 ± 0.011   0.262 ± 0.002   666.7 ± 12.6      4.283E-14 ± 8.053E-16
-;  ;
-;  
-;  ;            J       H      Ks
-;  lambda   = (([1.235, 1.662, 2.159]*1E-6)[bandNumber])[0]            ;Wavelength (conv. to meters)
-;  width    = (([0.162, 0.251, 0.262]*1E-6)[bandNumber])[0]            ;Band width (conv. to meters)
-;  Fnu0     = (([1594E, 1024E, 666.7])[bandNumber])[0]                 ;Zero-point flux (Jy)
-;  Flambda0 = (([31.29, 11.33, 4.283]*1E-14)[bandNumber])[0]           ;Zero-point flux (W cm-2 um-1)
-;  ;  jyImg    = Fnu0*10.0^(-0.4*(magImg - 2.5*ALOG10(plateScale^2)))     ;Convert to Jy/arcsec^2
-;  ;  MJyImg   = Fnu0*10.0^(-0.4*(magImg - 2.5*ALOG10(plateScale^2))) * $ ;Convert mag/arcsec^2...
-;  ;    ((!RADEG*3600E/plateScale)^2) / 1E6                                ;...into MJy/Sr
-;  
-;  ;Add keywords to make this a ujy/arcsec^2
-;  bscale1  = Fnu0*(1e6)*10.0^(-0.4*delMag)*plateScale^(-2)
-;  SXADDPAR, header, 'BUNIT', 'uJy arcsec^-2'
-;  SXADDPAR, header, 'BSCALE', bscale1
-;  
-;  ujyFile = groupStruc.analysis_dir + 'S11B_Combined_Images' $        ;Define path for save file
-;    + PATH_SEP() + 'Hband_I_cal.fits'
-;  ;  WRITEFITS, jyFile, jyImg, header
-;  WRITEFITS, ujyFile, intensityImg, header
-
+  PRINT_TEXT2, event, 'Completed measuring photometry of 2MASS PSC entries'
+  
 END
 
 PRO S2_USE_2BAND_PHOTOMETRY, event
   ;Retrieve WID for path text box
-  wS2pathTextBox  = WIDGET_INFO(event.top, FIND_BY_UNAME='2ND_BAND_PATH')
+  wS2pathTextBox  = WIDGET_INFO(event.top, FIND_BY_UNAME='S2_2ND_BAND_PATH')
   wS2browseButton = WIDGET_INFO(event.top, FIND_BY_UNAME='S2_BROWSE_FOR_2ND_BAND')
-
+  
   IF event.select THEN BEGIN
     ;Activate the text box and browse button
     WIDGET_CONTROL, wS2pathTextBox, SENSITIVE=1
     WIDGET_CONTROL, wS2browseButton, SENSITIVE=1
   ENDIF ELSE BEGIN
     ;Clear the text box
-    WIDGET_CONTROL, wS2pathTextBox, SET_VALUE=''
-
+    WIDGET_CONTROL, wS2pathTextBox, SET_VALUE='PPOL DIRECTORY GOES HERE'
+    
     ;Deactivate the text box and browse button
     WIDGET_CONTROL, wS2pathTextBox, SENSITIVE=0
     WIDGET_CONTROL, wS2browseButton, SENSITIVE=0
@@ -622,7 +558,7 @@ END
 
 PRO S2_BROWSE_FOR_2ND_BAND, event
   ;Retrieve WID for path text box
-  wS2pathTextBox = WIDGET_INFO(event.top, FIND_BY_UNAME='2ND_BAND_PATH')
+  wS2pathTextBox = WIDGET_INFO(event.top, FIND_BY_UNAME='S2_2ND_BAND_PATH')
   
   ;Have the user specify where the data is being stored
   dir = DIALOG_PICKFILE(TITLE='Select PPOL directory for 2ND band', /DIRECTORY)
@@ -634,7 +570,7 @@ END
 
 PRO S2_CALIBRATE_PHOTOMETRY, event
   ;Retrieve WID for path text box
-  wS2pathTextBox  = WIDGET_INFO(event.top, FIND_BY_UNAME='2ND_BAND_PATH')
+  wS2pathTextBox  = WIDGET_INFO(event.top, FIND_BY_UNAME='S2_2ND_BAND_PATH')
   wS2browseButton = WIDGET_INFO(event.top, FIND_BY_UNAME='S2_BROWSE_FOR_2ND_BAND')
   
   displayWID = WIDGET_INFO(event.top,FIND_BY_UNAME='IMAGE_DISPLAY_WINDOW');Grab the display window WID
@@ -649,7 +585,7 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
   maskPath = groupStruc.analysis_dir + $
     'S2_Ski_Jump_Fixes' + PATH_SEP() + $
     'Masking_files' + PATH_SEP() + 'maskInfo.dat'
-
+    
   ;Read header if present
   IF FILE_TEST(maskPath) THEN BEGIN
     maskHeader = READHEAD(maskPath)
@@ -663,12 +599,29 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
   IF wS2pathSensitive EQ 1 THEN BEGIN
     ;Get the proposed path to the second band
     WIDGET_CONTROL, wS2pathTextBox, GET_VALUE = band2analysis_dir
-
+    
     ;Test that this is a DIFFERENT path
     IF band2analysis_dir EQ groupStruc.analysis_dir THEN BEGIN
       PRINT_TEXT2, event, 'Path for 2nd band is same as current analysis directory.'
       RETURN
     ENDIF
+    
+    ;Test that this is a genuine PPOL path
+    testPath = band2analysis_dir + 'S1_Image_Groups_and_Meta_Groups' + PATH_SEP() + 'Group_Summary.sav'
+    IF ~FILE_TEST(testPath) THEN BEGIN
+      PRINT_TEXT2, event, 'This does not appear to be a PPOL directory.'
+      RETURN
+    ENDIF
+    
+    PRINT_TEXT2, event, $
+      + NEW_LINE() + '***!!!WARNING!!!***' $
+      + NEW_LINE() + 'This procedure assumes image alignment' $
+      + NEW_LINE() + 'was performed in previous step.' $
+      + NEW_LINE() $
+      + NEW_LINE() + 'If this is not true, then re-run the previous step' $
+      + NEW_LINE() + 'using the "2-band" option to specify the PPOL directory' $
+      + NEW_LINE() + 'of the complementary waveband images.' $
+      + NEW_LINE() + '***!!!WARNING!!!***'
 
     ;Build paths to photometry files
     pathBand1Phot = groupStruc.analysis_dir + $
@@ -678,14 +631,14 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
       'S11_Full_Field_Polarimetry' + $
       PATH_SEP()
     pathBand2Phot = FILE_SEARCH(pathBand2Phot, '*_photometry.dat', COUNT = band2Found)
-   
+    
     ;Check that photometry files actually exist
     IF FILE_TEST(pathBand1Phot) AND (band2Found EQ 1) THEN BEGIN
       READCOL, pathBand1Phot, ID1, RA1, Dec1, mag1, s_mag1, $
         FORMAT='A,F,F,F,F', COMMENT = ';'
       READCOL, pathBand2Phot, ID2, RA2, Dec2, mag2, s_mag2, $
         FORMAT='A,F,F,F,F', COMMENT = ';'
-      
+        
       PRINT_TEXT2, event, 'Read photometry from two bands.'
     ENDIF ELSE BEGIN
       PRINT_TEXT2, event, 'Could not find both photometry files.'
@@ -695,16 +648,20 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
     ;Read in intensity images
     pathBand1Img = groupStruc.analysis_dir + $
       'S11_Full_Field_Polarimetry' + PATH_SEP()
-    band1IntenFile = (FILE_SEARCH(pathBand1Img, 'MetaGroup*Intensity.fits', COUNT = numBand1))[0]
+    band1IntenFile = (FILE_SEARCH(pathBand1Img, '*_I.fits', COUNT = numBand1))[0]
+    band1sIfile    = (FILE_SEARCH(pathBand1Img, '*_sI.fits', COUNT = numBand1))[0]
     
     pathBand2Img = band2analysis_dir + $
       'S11_Full_Field_Polarimetry' + PATH_SEP()
-    band2IntenFile = (FILE_SEARCH(pathBand2Img, 'MetaGroup*Intensity.fits', COUNT = numBand2))[0]
+    band2IntenFile = (FILE_SEARCH(pathBand2Img, '*_I.fits', COUNT = numBand2))[0]
+    band2sIfile    = (FILE_SEARCH(pathBand2Img, '*_sI.fits', COUNT = numBand1))[0]
     
     IF (numBand1 EQ 1) AND (numBand2 EQ 1) THEN BEGIN
       ;Read in the intensity images
       band1Img = READFITS(band1IntenFile, band1Header)
+      band1Sig = READFITS(band1sIfile)
       band2Img = READFITS(band2IntenFile, band2Header)
+      band2Sig = READFITS(band2sIfile)
     ENDIF ELSE BEGIN
       PRINT_TEXT2, event, 'Could not uniquely identify both intensity images'
       RETURN
@@ -724,14 +681,14 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
       band2 + 'MAG', INDEX = magTag2)
     testSig  = TAG_EXIST(groupStruc.starInfo, $                         ;Find the tag containing magnitude uncertainties for this band
       'E_' + band2 + 'MAG', INDEX = sigMagTag2)
-    
+      
     ;Now perform 2 band photometric reduction
     ;Start by matching stars between band1 and band2
     MATCH, ID1, ID2, ind1, ind2, COUNT=numMatch
     
     IF numMatch GT 0 THEN BEGIN
       PRINT_TEXT2, event, STRING(numMatch, FORMAT='("Found", I3, " matching stars.")')
-
+      
       ;Cull and match the list of star from band1 and band2
       ;*** BAND 1 ***
       ID1    = ID1[ind1]
@@ -746,7 +703,7 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
       Dec2   = Dec2[ind2]
       mag2   = mag2[ind2]
       s_mag2 = s_mag2[ind2]
-
+      
     ENDIF ELSE BEGIN
       PRINT_TEXT2, event, 'Could not match any stars.'
       RETURN
@@ -755,7 +712,7 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
     ;Now try to match on 2MASS ID from groupStruc.starInfo
     starIDs  = strtrim(groupStruc.starInfo._2MASS, 2)
     MATCH, ID1, starIDs, ind1, starInds, COUNT=numMatch
-
+    
     ;Now grab the photometry information for the matched stars
     starInfo = groupStruc.starInfo[starInds]
     
@@ -781,11 +738,11 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
     xRegress     = sign1*mag1 + sign2*mag2
     sig_xRegress = SQRT(s_mag1^2 + s_mag2^2)
     
-    ;Perform the regression using FITEXY
-    FITEXY, xRegress, yRegress, A_intercept, B_slope, $
-      X_SIG = sig_xRegress, Y_SIG = sig_yRegress, $
-      sigma_A_B, chi_sq, q
-    
+;    ;Perform the regression using FITEXY
+;    FITEXY, xRegress, yRegress, A_intercept, B_slope, $
+;      X_SIG = sig_xRegress, Y_SIG = sig_yRegress, $
+;      sigma_A_B, chi_sq, q
+      
     ;Get ready to display results in the plot window
     WSET, displayWindowIndex
     xmin   = FLOOR(5.0*MIN(xRegress - sig_xRegress))/5.0
@@ -794,95 +751,90 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
     ymax   = CEIL(5.0*MAX(yRegress + sig_yRegress))/5.0
     PLOT, [xmin, xmax], [ymin, ymax], /NODATA, $
       XRANGE = [xmin, xmax], YRANGE = [ymin, ymax], $
-      XSTYLE = 1, YSTYLE = 1, $ 
+      XSTYLE = 1, YSTYLE = 1, $
       XTITLE = band1 + '_Mimir - ' + band2 + '_Mimir', $
       YTITLE = band1 + '_2MASS - ' + band1 + '_Mimir
-    
     OPLOTERROR, xRegress, yRegress, sig_xRegress, sig_yRegress, PSYM=4, THICK = 2
-    OPLOT, !X.CRANGE, A_intercept + B_slope*!X.CRANGE, THICK=2, COLOR=RGB_TO_DECOMPOSED([255, 0, 0])
 
-    ;Report results to user
+;    OPLOT, !X.CRANGE, A_intercept + B_slope*!X.CRANGE, THICK=2, COLOR=RGB_TO_DECOMPOSED([255, 0, 0])
+;    
+;    ;Report results to user
+;    PRINT_TEXT2, event, 'Best fit linear regression has'
+;    PRINT_TEXT2, event, NEW_LINE() + 'FITEXY:'
+;    PRINT_TEXT2, event, STRING(A_intercept, FORMAT='("INTERCEPT = ", F6.3)')
+;    PRINT_TEXT2, event, STRING(B_slope,     FORMAT='("SLOPE     = ", F6.3)')
+    
+    ;******
+    ;Use an MCMC method to more accurately sample the posterior distribution
+    ;******
+    PRINT_TEXT2, event, NEW_LINE() + 'Performing MCMC regression for intensity calibration constants...'
+    LINMIX_ERR, xRegress, yRegress, POST, XSIG=sig_xRegress, YSIG=sig_yRegress,$
+      NGAUSS=3, /METRO, /SILENT
+    alpha = median(POST[*].alpha)
+    beta  = median(POST[*].beta)
+    postSamples  = TRANSPOSE([[post.alpha],[post.beta]])
+    cov          = CORRELATE(postSamples, /COVARIANCE)
+    s_alpha      = cov[0,0]
+    s_beta       = cov[1,1]
+    s_alpha_beta = cov[0,1]
+    
+    ;Overplot the best fit line
+    OPLOT, !X.CRANGE, alpha + beta*!X.CRANGE, THICK=2, COLOR=RGB_TO_DECOMPOSED([255, 0, 0])
+    
+    ;Update the user on the resulting regression values
     PRINT_TEXT2, event, 'Best fit linear regression has'
-    PRINT_TEXT2, event, NEW_LINE() + 'FITEXY:'
-    PRINT_TEXT2, event, STRING(A_intercept, FORMAT='("INTERCEPT = ", F6.3)')
-    PRINT_TEXT2, event, STRING(B_slope,     FORMAT='("SLOPE     = ", F6.3)')
-
-;    ;******
-;    ;Try an MCMC method and check how it compares
-;    ;******
-;    LINMIX_ERR, xRegress, yRegress, POST, XSIG=sig_xRegress, YSIG=sig_yRegress,$
-;      NGAUSS=3, /METRO, /SILENT
-;    alpha = median(POST[*].alpha)
-;    beta  = median(POST[*].beta)
-;    postSamples = TRANSPOSE([[post.alpha],[post.beta]])
-;    cov         = CORRELATE(postSamples, /COVARIANCE)
-;
-;    OPLOT, !X.CRANGE, alpha + beta*!X.CRANGE, THICK=2, COLOR=RGB_TO_DECOMPOSED([255, 255, 0])
-;
-;    PRINT_TEXT2, event, NEW_LINE() + 'OR' + NEW_LINE() + NEW_LINE()+ 'MCMC:'
-;    PRINT_TEXT2, event, STRING(ALPHA, FORMAT='("INTERCEPT = ", F6.3)')
-;    PRINT_TEXT2, event, STRING(BETA,     FORMAT='("SLOPE     = ", F6.3)')
-
+    PRINT_TEXT2, event, STRING(alpha, s_alpha, FORMAT='("INTERCEPT = ", F6.3, " +/- ", F6.3)')
+    PRINT_TEXT2, event, STRING(beta,  s_beta,  FORMAT='("SLOPE     = ", F6.3, " +/- ", F6.3)')
+    
     ;Apply regression correction to intensity image
     ;Compute median color value in galaxy
     ;Start by identifying "galaxy region"
     
-    ;Use Astrolib 'HASTROM' routine to align images with astrometry
-    HASTROM, band2Img, band2Header, band2Img1, band2Header1, band1Header, MISSING = -1E6
-    
-    ;TODO: Build sub-pixel image alignment
-    
     ;Force images to be same size by cropping larger image
     sz1 = SIZE(band1Img, /DIMENSIONS)
-    sz2 = SIZE(band2Img1, /DIMENSIONS)
+    sz2 = SIZE(band2Img, /DIMENSIONS)
     
     ;Trim the x-dimension
     IF sz1[0] GT sz2[0] THEN BEGIN
       band1Img = band1Img[0:sz2[0]-1,*]
       SXADDPAR, band1Header, 'NAXIS1', sz2[0]
     ENDIF ELSE BEGIN
-      band2Img1 = band2Img1[0:sz1[0]-1,*]
-      SXADDPAR, band2Header1, 'NAXIS1', sz1[0]
+      band2Img = band2Img[0:sz1[0]-1,*]
+      SXADDPAR, band2Header, 'NAXIS1', sz1[0]
     ENDELSE
-
+    
     ;Trim the y-dimension
     IF sz1[1] GT sz2[1] THEN BEGIN
       band1Img = band1Img[*,0:sz2[1]-1]
       SXADDPAR, band1Header, 'NAXIS2', sz2[1]
     ENDIF ELSE BEGIN
-      band2Img1 = band2Img1[*,0:sz1[1]-1]
-      SXADDPAR, band2Header1, 'NAXIS2', sz1[1]
+      band2Img = band2Img[*,0:sz1[1]-1]
+      SXADDPAR, band2Header, 'NAXIS2', sz1[1]
     ENDELSE
     
     ;Extract astrometry from both images
     EXTAST, band1Header, astr1
-    EXTAST, band2Header1, astr2
+    EXTAST, band2Header, astr2
     AD2XY, galRA, galDec, astr1, galX1, galY1
     AD2XY, galRA, galDec, astr2, galX2, galY2
     
-;    ;For now, let's just used the difference
-;    ;(galX1 - galX2) and (galY1 - galY2)
-;    ;to align the two band images
-;    dx = ROUND(galX2 - galX1)
-;    dy = ROUND(galY2 - galY1)
-;      
-;    ;quick hack for alignment
-;    band1Img  = SMART_SHIFT(band1Img, dx, dy)
-
-    ;Compute the color image
-    fluxRatio = band1Img/band2Img1
+    ;Compute the instrumental color image
+    fluxRatio = band1Img/band2Img
     badInds   = WHERE((fluxRatio LT 1e-6) OR ~FINITE(fluxRatio), numBad)
     IF numBad GT 0 THEN fluxRatio[badInds] = 1e-6
-    colorImg  = sign2*2.5*ALOG10(fluxRatio)
+    instColorImg = sign2*2.5*ALOG10(fluxRatio)
+
+    ;Compute uncertainty in instrumental color image
+    s_instColorImg = 0.4*ALOG(10E)*SQRT((band1Sig/band1Img)^2E + (band2Sig/band2Img)^2E)
     
     ;Estimate the sky level in each band
     SKY, band1Img, skymode1, skynoise1, /SILENT
-    SKY, band2Img1, skymode2, skynoise2, /SILENT
+    SKY, band2Img, skymode2, skynoise2, /SILENT
     
     ;Find pixels well above the sky noies
-    brightPix1 = (band1Img GT 5*skynoise1)
-    brightPix2 = (band2Img1 Gt 5*skynoise2)
-   
+    brightPix1 = (band1Img GT 10*skynoise1)
+    brightPix2 = (band2Img Gt 10*skynoise2)
+    
     ;Label each region of the 'brightPix#" arrays
     labelImg1 = LABEL_REGION(brightPix1)
     labelImg2 = LABEL_REGION(brightPix2)
@@ -894,15 +846,15 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
     ;Create arrays ONLY selected the galaxy region
     galRegion1 = labelImg1 EQ labelVal1
     galRegion2 = labelImg2 EQ labelVal2
-
+    
     ;Estimate the mode of the colorImg in the galaxy region
     galRegion = galRegion1 AND galRegion2
     galInds   = WHERE(galRegion, numGalPix)
     IF numGalPix GT 0 THEN BEGIN
-      SKY, colorImg[galInds], colorMode, colorSig, /SILENT
+      SKY, instColorImg[galInds], colorMode, colorSig, /SILENT
       PRINT_TEXT2, event, $
         NEW_LINE() + STRING(colorMode, FORMAT='("Appling color correction using color of", F6.2, "  (GREEN PLOT MARKER)")')
-      OPLOT, [colorMode], [A_intercept + B_slope*colorMode], $
+      OPLOT, [colorMode], [alpha + beta*colorMode], $
         PSYM = 4, SYMSIZE=2, THICK=2, COLOR=RGB_TO_DECOMPOSED([0, 255, 0])
     ENDIF ELSE BEGIN
       PRINT_TEXT2, event, 'Could not find galaxy region... something is amiss.'
@@ -917,107 +869,117 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
     GETROT, astr1, rot, CDelt
     pl_sc   = SQRT(ABS(CDelt[0])*ABS(CDelt[1]))*3600.0
     pixArea = pl_sc^2
-    bscale  = zpFlux*10D^(-0.4D*(A_intercept + B_slope*colorMode))/pixArea
-
-    ;Add BSCALE keyword to header, and write final image to disk
+    bscale  = zpFlux*10D^(-0.4D*(alpha + beta*colorMode))/pixArea
+    
+    ;Now compute the (complicated) uncertainty in the calibrated intensity
+    s_beta_colorMode = beta*colorMode*SQRT((s_beta/beta)^2 + (colorSig/colorMode)^2)
+    s_arg            = SQRT(s_alpha^2 + s_beta_colorMode^2)
+    s_bscale         = ABS(bscale*0.4*ALOG(10)*s_arg)
+    
+    ;Add BSCALE (and SBSCALE) keywords to header, and write final image to disk
     band1Header1 = band1Header              ;Copy the band1 header (add params to this)
     SXADDPAR, band1Header1, 'BSCALE', bscale
+    SXADDPAR, band1Header1, 'SBSCALE', s_bscale
     SXADDPAR, band1Header1, 'BUNIT', 'uJy/arcsec^2'
-    fileBase   = FILE_BASENAME(band1IntenFile, '.FITS')
-    baseLen    = STRLEN(fileBase)
-    fileBase   = STRMID(fileBase, 0, baseLen - 4)
-    outputFile = groupStruc.analysis_dir + $
-      'S11_Full_Field_Polarimetry' + PATH_SEP() + $
-      fileBase + '_cal.fits'
+    outputFile = FILE_DIRNAME(band1IntenFile) $
+      + PATH_SEP() + FILE_BASENAME(band1IntenFile, '.FITS') + '_cal.fits'
     WRITEFITS, outputFile, band1Img, band1Header1
-    
-    ;Propogate errors and write uncertainty image ???
-    
-    ;Now compute regression coefficients for color map
-    PRINT_TEXT2, event, 'Continuing to compute color map in 5 seconds'
     WAIT, 5.0
     
-    ;Compute the regression quantities
+    ;*********************************************************
+    ;* Continue processing to compute calibrated color image *
+    ;*********************************************************
+    ;Compute the regression quantities for the color map
     yRegress     = starInfo.(magTag1) - starInfo.(magTag2)
     sig_yRegress = SQRT(s_mag1^2 + starInfo.(sigMagTag1)^2)
     
     xRegress     = sign1*mag1 + sign2*mag2
     sig_xRegress = SQRT(s_mag1^2 + s_mag2^2)
     
-    ;Perform the regression using FITEXY
-    FITEXY, xRegress, yRegress, A_intercept, B_slope, $
-      X_SIG = sig_xRegress, Y_SIG = sig_yRegress, $
-      sigma_A_B, chi_sq, q
-    
     ;Compute plot data range
     xmin   = FLOOR(5.0*MIN(xRegress - sig_xRegress))/5.0
     xmax   = CEIL(5.0*MAX(xRegress + sig_xRegress))/5.0
     ymin   = FLOOR(5.0*MIN(yRegress - sig_yRegress))/5.0
     ymax   = CEIL(5.0*MAX(yRegress + sig_yRegress))/5.0
+
+    ;Plot regression data and errorbars
     PLOT, [xmin, xmax], [ymin, ymax], /NODATA, $
       XRANGE = [xmin, xmax], YRANGE = [ymin, ymax], $
       XSTYLE = 1, YSTYLE = 1, $
       XTITLE = band1 + '_Mimir - ' + band2 + '_Mimir', $
       YTITLE = band1 + '_2MASS - ' + band2 + '_2MASS'
-      
     OPLOTERROR, xRegress, yRegress, sig_xRegress, sig_yRegress, PSYM=4, THICK = 2
-    OPLOT, !X.CRANGE, A_intercept + B_slope*!X.CRANGE, THICK=2, COLOR=RGB_TO_DECOMPOSED([255, 0, 0])
+    
+    ;******
+    ;Use an MCMC method to more accurately sample the posterior distribution
+    ;******
+    PRINT_TEXT2, event, NEW_LINE() + 'Performing MCMC regression for color calibration constants...'
+    LINMIX_ERR, xRegress, yRegress, POST, XSIG=sig_xRegress, YSIG=sig_yRegress,$
+      NGAUSS=3, /METRO, /SILENT
+    alpha = median(POST[*].alpha)
+    beta  = median(POST[*].beta)
+    postSamples  = TRANSPOSE([[post.alpha],[post.beta]])
+    cov          = CORRELATE(postSamples, /COVARIANCE)
+    s_alpha      = cov[0,0]
+    s_beta       = cov[1,1]
+    s_alpha_beta = cov[0,1]
+    
+    ;Overplot resulting line
+    OPLOT, !X.CRANGE, alpha + beta*!X.CRANGE, THICK=2, COLOR=RGB_TO_DECOMPOSED([255, 0, 0])
     
     ;Report results to user
     PRINT_TEXT2, event, 'Best fit linear regression has'
-    PRINT_TEXT2, event, NEW_LINE() + 'FITEXY:'
-    PRINT_TEXT2, event, STRING(A_intercept, FORMAT='("INTERCEPT = ", F6.3)')
-    PRINT_TEXT2, event, STRING(B_slope,     FORMAT='("SLOPE     = ", F6.3)')
+    PRINT_TEXT2, event, STRING(alpha, s_alpha, FORMAT='("INTERCEPT = ", F6.3, " +/- ", F6.3)')
+    PRINT_TEXT2, event, STRING(beta,  s_beta,  FORMAT='("SLOPE     = ", F6.3, " +/- ", F6.3)'
     
-;    ;Find pixels well above the sky noies
-;    brightPix1 = (band1Img GT 5*skynoise1)
-;    brightPix2 = (band2Img1 Gt 5*skynoise2)
-;    
-;    ;Label each region of the 'brightPix#" arrays
-;    labelImg1 = LABEL_REGION(brightPix1)
-;    labelImg2 = LABEL_REGION(brightPix2)
-;    
-;    ;Get the values of the labeled galaxy region in each image
-;    labelVal1 = labelImg1[ROUND(galX1), ROUND(galY1)]
-;    labelVal2 = labelImg2[ROUND(galX2), ROUND(galY2)]
-;    
-;    ;Create arrays ONLY selected the galaxy region
-;    galRegion1 = labelImg1 EQ labelVal1
-;    galRegion2 = labelImg2 EQ labelVal2
-    
-    ;Fill in the color of the galaxy where SNR > 5 in both bands
+    ;Fill in the color of the galaxy where SNR > 10 in both bands
     galRegion = galRegion1 AND galRegion2
     galInds   = WHERE(galRegion, numGalPix, $
       COMPLEMENT=badInds, NCOMPLEMENT=numBadPix)
     IF numGalPix GT 0 THEN BEGIN
-      colorImg1 = 0*colorImg
-      colorImg1[galInds] = A_intercept + B_slope*colorImg[galInds]
+      ;Fill in color image
+      colorImg = 0*instColorImg
+      colorImg[galInds] = alpha + beta*instColorImg[galInds]
+
+      ;Fill in color unctainty image
+      s_colorImg = 0*instColorImg
+      s_colorImg[galInds] = SQRT($
+        (s_alpha)^2 + $
+        (instColorImg[galInds]*s_beta)^2 + $
+        (beta*s_instColorImg[galInds])^2)
+      
     ENDIF
     IF numBadPix GT 0 THEN BEGIN
-      colorImg1[badInds] = !VALUES.F_NAN
+      colorImg[badInds] = !VALUES.F_NAN
     ENDIF
-
+    
     ;Write color image to disk
     fileBase   = FILE_BASENAME(band1IntenFile, '.FITS')
     fileBase   = REVERSE(STRSPLIT(fileBase, '_', /EXTRACT))
     fileBase   = REVERSE(fileBase[2:*])
-    fileBase   = STRJOIN(fileBase, '_') + '_' + band1 + '-' + band2 + '_map.fits'
+    fileBase_c = STRJOIN(fileBase, '_') + '_' + band1 + '-' + band2 + '_map.fits'
     outputFile = groupStruc.analysis_dir + $
       'S11_Full_Field_Polarimetry' + PATH_SEP() + $
-      fileBase
-    WRITEFITS, outputFile, colorImg1, band1Header
-    
+      fileBase_c
+    WRITEFITS, outputFile, colorImg, band1Header
+
+    ;Write uncertainty in color image to disk
+    fileBase_s = STRJOIN(fileBase, '_') + '_s_' + band1 + '-' + band2 + '_map.fits'
+    outputFile = groupStruc.analysis_dir + $
+      'S11_Full_Field_Polarimetry' + PATH_SEP() + $
+      fileBase_s
+    WRITEFITS, outputFile, s_colorImg
+
     PRINT_TEXT2, event, 'Completed two band photometric calibration.'
     
   ENDIF ELSE BEGIN
     ;
     ;This section of code simply computes a single zero-point offset and uses that to apply BSCALE
     ;
-    
     ;Read in the file
-    pathBand1Img   = groupStruc.analysis_dir + $
+    pathBand1Img = groupStruc.analysis_dir + $
       'S11_Full_Field_Polarimetry' + PATH_SEP()
-    band1IntenFile = (FILE_SEARCH(pathBand1Img, 'MetaGroup*Intensity.fits', COUNT = numBand1))[0]
+    band1IntenFile = (FILE_SEARCH(pathBand1Img, '*_I.fits', COUNT = numBand1))[0]
     
     IF numBand1 EQ 1 THEN BEGIN
       band1Img       = READFITS(band1IntenFile, band1Header)
@@ -1025,12 +987,12 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
     ENDIF ELSE BEGIN
       PRINT_TEXT2, event, 'Could not find intensity image to calibrate.'
     ENDELSE
-
+    
     PRINT_TEXT2, event, 'Reading in photometry from one band.'
     pathBand1 = groupStruc.analysis_dir + $
       'S11_Full_Field_Polarimetry' + $
       PATH_SEP() + groupStruc.NIRband + '_photometry.dat'
-    
+      
     ;Check that photometry file actually exists
     IF FILE_TEST(pathBand1) THEN BEGIN
       READCOL, pathBand1, ID1, RA1, Dec1, mag1, s_mag1, $
@@ -1062,7 +1024,7 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
       STRMID(band1,0,1) + 'MAG', INDEX = magTag1)
     testSig  = TAG_EXIST(groupStruc.starInfo, $                         ;Find the tag containing magnitude uncertainties for this band
       'E_' + STRMID(band1,0,1) + 'MAG', INDEX = sigMagTag1)
-
+      
     ;Compute differences between 2MASS and Mimir magnitudes
     deltaMags    = mag1 - starInfo.(magTag1)
     sigDeltaMags = SQRT(s_mag1^2 + starInfo.(sigMagTag1)^2)
@@ -1073,12 +1035,12 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
     sigZPmag = SQRT(1.0/TOTAL(wts))
     PRINT_TEXT2, event, $
       STRING(zpMag, sigZPmag, FORMAT='("Computed zero-point magnitude of ", F6.2, "+/- ", F6.4)')
-
+      
     ;Parse band index
     NIRbands   = ['J', 'H', 'K']
     band1      = (STRMID(groupStruc.NIRband, 0, 1))[0]
     band1Ind   = WHERE((STRMID(band1, 0, 1))[0] EQ NIRbands)
-
+    
     ;Now compute the conversion factor to match 2MASS magnitudes
     ;Flux of 0-mag source in 2MASS (Jy)
     ;Taken from Cohen et al. (2003) -- http://adsabs.harvard.edu/abs/2003AJ....126.1090C
@@ -1088,10 +1050,14 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
     pl_sc   = SQRT(ABS(CDelt[0])*ABS(CDelt[1]))*3600.0
     pixArea = pl_sc^2
     bscale  = zpFlux*10D^(-0.4D*(zpMag))/pixArea
-        
+    
+    ;Compute untertainty in bscale value
+    s_bscale = bscale*(0.4*ALOG(10))*sigZPmag
+    
     ;Add BSCALE keyword to header, and write final image to disk
     band1Header1 = band1Header              ;Copy the band1 header (add params to this)
     SXADDPAR, band1Header1, 'BSCALE', bscale
+    SXADDPAR, band1Header1, 'SBSCALE', s_bscale
     SXADDPAR, band1Header1, 'BUNIT', 'uJy/arcsec^2'
     fileBase   = FILE_BASENAME(band1IntenFile, '.FITS')
     baseLen    = STRLEN(fileBase)
@@ -1103,5 +1069,5 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
     
     PRINT_TEXT2, event, 'Single band photometric calibration complete.'
   ENDELSE
-
+  
 END

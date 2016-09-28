@@ -227,14 +227,27 @@ PRO PEGS_POL_GUI
   ;****************************************************************************
 
   ;***STEP 1 TAB***************************************************************
-  ; Create the first tab base, containing a label and two
-  ; button groups.
+  ; Create the first tab base
   wPost1              = WIDGET_BASE(wPostTabs, TITLE='Final images', /COLUMN, /ALIGN_LEFT, /BASE_ALIGN_LEFT)
-  wPost1Label1        = WIDGET_LABEL(wPost1, VALUE=NEW_LINE()+'1. Combine all PPOL step 11 images', YSIZE=30)
-  wCombineImages      = WIDGET_BUTTON(wPost1, VALUE='Start Combining', EVENT_PRO='S1_AVERAGE_STOKES_IMAGES')
+
+  ;Include an option to align images with a second band
+  wPost1pathCheckBoxBase  = WIDGET_BASE(wPost1, /NONEXCLUSIVE, /ALIGN_LEFT, /BASE_ALIGN_CENTER)
+  wPost1pathCheckbox      = WIDGET_BUTTON(wPost1pathCheckboxBase, VALUE='Align HWP images from two bands for multi-band analysis', $
+    EVENT_PRO='S1_USE_2BAND_PHOTOMETRY', UNAME='S1_USE_2BAND_PHOTOMETRY')
   
-  wPost1Label2        = WIDGET_LABEL(wPost1, VALUE=NEW_LINE()+'2. Compute astrometry of final, combined images', YSIZE=30)
-  wAstrometry         = WIDGET_BUTTON(wPost1, VALUE='Start Astrometry', EVENT_PRO='S1_FINAL_ASTROMETRY')
+  wPost1_2ndBandRow       = WIDGET_BASE(wPost1, /ROW)
+  wPost1_pathTextBox      = WIDGET_TEXT(wPost1_2ndBandRow, VALUE='PPOL DIRECTORY GOES HERE', $
+    XSIZE=50, /EDITABLE, SENSITIVE=0, UNAME='S1_2ND_BAND_PATH')
+  wPost1_pathBrowseButton = WIDGET_BUTTON(wPost1_2ndBandRow, VALUE='Browse...', $
+    UNAME='S1_BROWSE_FOR_2ND_BAND', EVENT_PRO='S1_BROWSE_FOR_2ND_BAND', SENSITIVE=0)
+
+  ;Build the main procedure button
+  wPost1blank         = WIDGET_LABEL(wPost1, VALUE=' ')
+  wPost1Label1        = WIDGET_LABEL(wPost1, VALUE=NEW_LINE()+'1. Analyze HWP images to produce Stokes images', YSIZE=30)
+  wCombineImages      = WIDGET_BUTTON(wPost1, VALUE='Create Stokes Images', EVENT_PRO='S1_AVERAGE_STOKES_IMAGES')
+  
+  ;Include text boxes to display the final astrometry information
+  wPost1blank         = WIDGET_LABEL(wPost1, VALUE=' ')
   wAstrometryBase     = WIDGET_BASE(wPost1, /ROW, UNAME='ASTROMETRY_BASE')
   wAstrometryTextBase = WIDGET_BASE(wAstrometryBase, COLUMN=2)
   wCenterRALabel      = WIDGET_LABEL(wAstrometryTextBase, VALUE='Center RA')
@@ -247,42 +260,35 @@ PRO PEGS_POL_GUI
   wRotAngleText       = WIDGET_TEXT(wAstrometryTextBase, XSIZE=20, UNAME='ROT_ANGLE')
   
   ;***STEP 2 TAB***************************************************************
-  wPost2                = WIDGET_BASE(wPostTabs, TITLE='Calibrate Photometry', /COLUMN, /ALIGN_LEFT, /BASE_ALIGN_LEFT)
-  wS2row1               = WIDGET_BASE(wPost2, /ROW)
-  wS2label1             = WIDGET_LABEL(wS2row1, VALUE='1. Select photometry stars', YSIZE=30)
-  wS2magRangeSlider     = CW_DUAL_SLIDER(wS2row1, minimum=0E, maximum=14E, value=FLOAT([1,13]), $
+  wPost2               = WIDGET_BASE(wPostTabs, TITLE='Calibrate Photometry', /COLUMN, /ALIGN_LEFT, /BASE_ALIGN_LEFT)
+  wPost2label1         = WIDGET_LABEL(wPost2, VALUE='1. Select photometry stars', YSIZE=30)
+  wPost2row1           = WIDGET_BASE(wPost2, /ROW)
+  wPost2magRangeSlider = CW_DUAL_SLIDER(wPost2row1, minimum=4E, maximum=14E, value=FLOAT([5,13]), $
     XSIZE = 175, MAX_DIFFERENCE=5, EVENT_PRO='S2_MAGNITUDE_RANGE', UNAME='S2_MAG_RANGE', TITLE='Magnitude Range', SENSITIVE = 0)
-  wS2sliderCheckboxBase = WIDGET_BASE(wS2row1, /NONEXCLUSIVE, /ALIGN_CENTER, /BASE_ALIGN_CENTER)
-  wS2sliderCheckbox     = WIDGET_BUTTON(wS2sliderCheckboxBase, VALUE='Slider Inactive', $
+  wPost2sliderCheckboxBase = WIDGET_BASE(wPost2row1, /NONEXCLUSIVE, /ALIGN_CENTER, /BASE_ALIGN_CENTER)
+  wPost2sliderCheckbox     = WIDGET_BUTTON(wPost2sliderCheckboxBase, VALUE='Slider Inactive', $
     EVENT_PRO='S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE', UNAME='S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE')
 
-  wPost2Label1         = WIDGET_LABEL(wPost2, VALUE=NEW_LINE()+'2. Measure instrumental photometry', YSIZE=30)
+  wPost2Label2         = WIDGET_LABEL(wPost2, VALUE=NEW_LINE()+'2. Measure instrumental photometry', YSIZE=30)
   wMeasurePhotometry   = WIDGET_BUTTON(wPost2, VALUE='Measure Photometry', EVENT_PRO='S2_MEASURE_PHOTOMETRY')
 
-  wS2blank             = WIDGET_LABEL(wPost2, VALUE=' ')
-  wS2pathCheckBoxBase  = WIDGET_BASE(wPost2, /NONEXCLUSIVE, /ALIGN_LEFT, /BASE_ALIGN_CENTER)
-  wS2pathCheckbox      = WIDGET_BUTTON(wS2pathCheckboxBase, VALUE='Use a second NIR band to compute color correction', $
+  wPost2blank             = WIDGET_LABEL(wPost2, VALUE=' ')
+  wPost2pathCheckBoxBase  = WIDGET_BASE(wPost2, /NONEXCLUSIVE, /ALIGN_LEFT, /BASE_ALIGN_CENTER)
+  wPost2pathCheckbox      = WIDGET_BUTTON(wPost2pathCheckboxBase, VALUE='Use a second NIR band to compute color correction', $
     EVENT_PRO='S2_USE_2BAND_PHOTOMETRY', UNAME='S2_USE_2BAND_PHOTOMETRY')
   
-  wS2_2ndBandRow       = WIDGET_BASE(wPost2, /ROW)
-  wS2_pathTextBox      = WIDGET_TEXT(ws2_2ndBandRow, XSIZE=50, /EDITABLE, SENSITIVE=0, UNAME='2ND_BAND_PATH')
-  wS2_pathBrowseButton = WIDGET_BUTTON(wS2_2ndBandRow, VALUE='Browse...', $
+  wPost2_2ndBandRow       = WIDGET_BASE(wPost2, /ROW)
+  wPost2_pathTextBox      = WIDGET_TEXT(wPost2_2ndBandRow, VALUE='PPOL DIRECTORY GOES HERE', $
+    XSIZE=50, /EDITABLE, SENSITIVE=0, UNAME='S2_2ND_BAND_PATH')
+  wPost2_pathBrowseButton = WIDGET_BUTTON(wPost2_2ndBandRow, VALUE='Browse...', $
     UNAME='S2_BROWSE_FOR_2ND_BAND', EVENT_PRO='S2_BROWSE_FOR_2ND_BAND', SENSITIVE=0)
 
-  wPost2Label2         = WIDGET_LABEL(wPost2, VALUE=NEW_LINE()+'3. Calibrate photometry to 2MASS', YSIZE=30)
+  wPost2Label3         = WIDGET_LABEL(wPost2, VALUE=NEW_LINE()+'3. Calibrate photometry to 2MASS', YSIZE=30)
   wCalibratePhotometry = WIDGET_BUTTON(wPost2, VALUE='Calibrate Photometry', EVENT_PRO='S2_CALIBRATE_PHOTOMETRY')
 
   
   ;***STEP 3 TAB***************************************************************
   wPost3            = WIDGET_BASE(wPostTabs, TITLE='Rotate Stokes I', /COLUMN, /BASE_ALIGN_CENTER)
-;  wS3galPAlabel     = WIDGET_LABEL(wPost3, VALUE='Galaxy PA (degrees CCW)')
-;  wS3galPAtext      = WIDGET_TEXT(wPost3, XSIZE=20, UNAME='GALAXY_PA')
-;  wS3galCenterBase  = WIDGET_BASE(wPost3, COLUMN=2)  
-;  wS3galXlabel      = WIDGET_LABEL(wS3galCenterBase, VALUE='Galaxy X Center (pix)')
-;  wS3galXtext       = WIDGET_TEXT(wS3galCenterBase, XSIZE=20, UNAME='GALAXY_X_PIXEL')
-;  wS3galYlabel      = WIDGET_LABEL(wS3galCenterBase, VALUE='Galaxy Y Center (pix)')
-;  wS3galYtext       = WIDGET_TEXT(wS2galCenterBase, XSIZE=20, UNAME='GALAXY_Y_PIXEL')
-
   wS3blank          = WIDGET_LABEL(wPost3, VALUE=' ')
   wS3checkBoxBase   = WIDGET_BASE(wPost3, /NONEXCLUSIVE)
   wS3checkBox       = WIDGET_BUTTON(wS3checkBoxBase, VALUE='Use Galaxy Model Values', $
@@ -297,7 +303,7 @@ PRO PEGS_POL_GUI
   wS3rotYtext       = WIDGET_TEXT(wS3rotCenterBase, XSIZE=20, /EDITABLE, UNAME='ROTATION_Y_PIXEL')
   wS3rotateImages   = WIDGET_BUTTON(wPost3, VALUE='Rotate Image', EVENT_PRO='S3_ROTATE_IMAGE')
   
-  ;***STEP 3 TAB***************************************************************
+  ;***STEP 4 TAB***************************************************************
   wPost4            = WIDGET_BASE(wPostTabs, TITLE='Smooth and/or Rebin', /COLUMN)
   wS4ImageLabel     = WIDGET_LABEL(wPost4, VALUE='Select the images on which to operate')
   wS4ImageBase      = WIDGET_BASE(wPost4, /ROW, /EXCLUSIVE, EVENT_PRO='S4_SELECT_INPUT_IMAGES', UNAME='S4_SELECT_INPUT_IMAGES')
@@ -384,7 +390,7 @@ PRO PEGS_POL_GUI
   WIDGET_CONTROL, wS2contourSlider, set_value=FLOAT([1,3])
   WIDGET_CONTROL, wS3AmagRangeSlider, set_value=FLOAT([1,13])         ;Set the dual sliders to initial values
   WIDGET_CONTROL, wS4magRangeSlider, set_value=FLOAT([1,13])
-  WIDGET_CONTROL, wS2magRangeSlider, set_value=FLOAT([8,13])
+  WIDGET_CONTROL, wPost2magRangeSlider, set_value=FLOAT([8,13])
 
   ;Set default masking procedure (ignore IRAC image based PA)
   WIDGET_CONTROL, wS2IRAC_PA_checkbox, SET_UVALUE=0                   ;Default ignore IRAC PA
