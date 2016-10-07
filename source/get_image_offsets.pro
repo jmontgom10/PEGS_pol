@@ -60,10 +60,10 @@ FUNCTION GET_IMAGE_OFFSETS, imgArray, headArray, sources
     MESSAGE, 'No suitable stars were found for alignment.'
     RETURN, -99
   ENDELSE
-  
+
   ;Compute offset WRT up to the median pointing
-  dx -= MEDIAN(dx)
-  dy -= MEDIAN(dy)
+  dx -= MEDIAN(dx, /EVEN)
+  dy -= MEDIAN(dy, /EVEN)
   
 ;  ;Test switching dx, dy signs
 ;  dx *= -1

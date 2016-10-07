@@ -117,7 +117,7 @@ PRO S1_AVERAGE_STOKES_IMAGES, event
             ENDIF
           ENDFOR
 
-        ENDIF ELSE IF N_ELEMENTS(HWPfiles) EQ 1 AND HWPfiles[0] EQ '' THEN BEGIN
+        ENDIF ELSE IF N_ELEMENTS(theseFiles) EQ 1 AND theseFiles[0] EQ '' THEN BEGIN
           ;This means no files were selected, so return to the main GUI
           RETURN
         ENDIF ELSE BEGIN
@@ -178,7 +178,7 @@ PRO S1_AVERAGE_STOKES_IMAGES, event
           ENDIF
         ENDFOR
 
-      ENDIF ELSE IF N_ELEMENTS(HWPfiles) EQ 1 AND HWPfiles[0] EQ '' THEN BEGIN
+      ENDIF ELSE IF N_ELEMENTS(theseFiles) EQ 1 AND theseFiles[0] EQ '' THEN BEGIN
         ;This means no files were selected, so return to the main GUI
         RETURN
       ENDIF ELSE BEGIN
@@ -192,7 +192,6 @@ PRO S1_AVERAGE_STOKES_IMAGES, event
       bandNames = [STRMID(SXPAR(HEADFITS(theseFiles[0]), 'FILTNME2'), 0, 1)]
       fileBases = [fileBase0]
       HWPfiles  = theseFiles
-      STOP
     ENDWHILE
   ENDELSE
 
@@ -299,10 +298,10 @@ PRO S1_AVERAGE_STOKES_IMAGES, event
   
   ;Compute the optimal image offsets for all 16 HWP images
   img_offsets = GET_IMAGE_OFFSETS(imgBuf, headBuf, sources)
-  
-  ;Add a tiny amount to guarante SOME shift to each image
-  img_offsets += 0.11
-  
+
+  ;Shift offsets to be centered on median position of all images
+  img_offsets -= REBIN(MEDIAN(img_offsets, DIMENSION=2, /EVEN), 2, nFiles, /SAMPLE)
+
 ;  ; test code
 ;  x1 = 618 & y1 = 690
 ;  WINDOW, 0, xs = 600, ys = 600  
@@ -325,10 +324,10 @@ PRO S1_AVERAGE_STOKES_IMAGES, event
 ;    STOP
 ;  ENDFOR
   
-;  ;Look through the image stack and shift each image "in place"
-;  FOR iFile = 0, 15 DO BEGIN
-;    imgBuf[*,*,iFile] = FSHIFT(imgBuf[*,*, iFile], img_offsets[0, iFile], img_offsets[1,iFile])
-;  ENDFOR
+  ;Look through the image stack and shift each image "in place"
+  FOR iFile = 0, nFiles - 1 DO BEGIN
+    imgBuf[*,*,iFile] = FSHIFT(imgBuf[*,*, iFile], img_offsets[0, iFile], img_offsets[1,iFile])
+  ENDFOR
 
   ;Now that all the HWP images are aligned, compute IPPA and stokes Images for each band
   FOR iBand = 0, nBands - 1 DO BEGIN
@@ -512,14 +511,14 @@ PRO S1_AVERAGE_STOKES_IMAGES, event
 
     PRINT_TEXT2, event, 'Starting final astrometric registration.'
 
-    numStars = N_ELEMENTS(groupStruc.starInfo)                          ;Count the maximum number of possible astrometry stars
-    hist     = SXPAR(outHead, "HISTORY")                                ;Get the history info
-    SXDELPAR, outHead,'HISTORY'                                     ;delete any previous history entries
-    EXTAST, outHead, astr                                           ;Extract the initial astrometry
+    numStars = N_ELEMENTS(groupStruc.starInfo)                        ;Count the maximum number of possible astrometry stars
+    hist     = SXPAR(outHead, "HISTORY")                              ;Get the history info
+    SXDELPAR, outHead,'HISTORY'                                       ;Delete any previous history entries
+    EXTAST, outHead, astr                                             ;Extract the initial astrometry
     AD2XY, groupStruc.starInfo.RAJ2000, groupStruc.starInfo.DEJ2000, $  ;Solve for initial guesses on star positions
       astr, xGuess, yGuess
       
-    useStar = (xGuess GT 30) AND (xGuess LT (sz0[0] - 31)) $           ;Only use stars more than 30 pixels from image edge
+    useStar = (xGuess GT 30) AND (xGuess LT (sz0[0] - 31)) $          ;Only use stars more than 30 pixels from image edge
       AND (yGuess GT 30) AND (yGuess LT (sz0[1] - 31))
     useInds = WHERE(useStar, numUse)                                  ;Get the indices of the usable stars
     
@@ -567,9 +566,10 @@ PRO S1_AVERAGE_STOKES_IMAGES, event
       IF ~inArray OR ~ okShape $                                      ;If any one of the tests failed,
         OR (methodDifference GT 1) OR ~FINITE(methodDifference) $     ;then increment the failedFit counter
         THEN failedFit++
-      IF failedFit GE 2 THEN BREAK                                    ;If the "failed fit"
+      IF failedFit GE 2 $                                             ;If two or more consecutive stars were not fit,
+        THEN BREAK                                                    ;then break out of the loop.
     ENDFOR
-    
+
     useInds = WHERE(useStar, numUse)                                  ;Determine which stars were well fit
     IF numUse GT 0 THEN BEGIN
       astroStars = astroStars[useInds]                                ;Cull the 2MASS data
@@ -581,16 +581,16 @@ PRO S1_AVERAGE_STOKES_IMAGES, event
     PRINT_TEXT2, event, printString
     
     ;Now that the star positions are known, update the astrometry
-    IF numUse GE 6 THEN BEGIN                                       ;Begin least squares method of astrometry
+    IF numUse GE 6 THEN BEGIN                                         ;Begin least squares method of astrometry
       ;**** PERFORM LEAST SQUARES ASTROMETRY ****
       astr = JM_SOLVE_ASTRO(astroStars.RAJ2000, astroStars.DEJ2000, $
         xStars, yStars, NAXIS1 = sz0[0], NAXIS2 = sz0[1])
       crpix = [511, 512]
       XY2AD, crpix[0], crpix[1], astr, crval1, crval2
-      astr.crpix = (crpix + 1)                                      ;FITS convention is offset 1 pixel from IDL
-      astr.crval = [crval1, crval2]                                 ;Store the updated reference pixel values
-      PUTAST, outHead, astr, EQUINOX = 2000                     ;Update the header with the new astrometry
-    ENDIF ELSE IF numUse GE 3 THEN BEGIN                            ;Begin "averaging" method of astrometry
+      astr.crpix = (crpix + 1)                                        ;FITS convention is offset 1 pixel from IDL
+      astr.crval = [crval1, crval2]                                   ;Store the updated reference pixel values
+      PUTAST, outHead, astr, EQUINOX = 2000                           ;Update the header with the new astrometry
+    ENDIF ELSE IF numUse GE 3 THEN BEGIN                              ;Begin "averaging" method of astrometry
       ;**** PERFORM 3-5 STAR ASTROMETRY ****
       numTri = numUse*(numUse-1)*(numUse-2)/6
       big_cd = DBLARR(2,2,numTri)
@@ -749,6 +749,10 @@ PRO S1_AVERAGE_STOKES_IMAGES, event
     ;******
     ;Now write ALL the computed files to disk
     ;******
+    
+    ;Temporarily store images for tests
+    if iBand eq 0 then I1 = Iimg
+    if iBand eq 1 then I2 = Iimg
     
     ;Write the intensity files to disk
     outPath = thisInDir + fileBases[iBand]

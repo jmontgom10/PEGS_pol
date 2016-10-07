@@ -14,7 +14,7 @@ PRO S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
     badStars    = displayStruc.badStars
     displayHead = displayStruc.displayHead
   ENDIF
-  
+
   ;If the dual slider is desensitized, then sensitize it and change button value
   IF wS2magRangeSensitive EQ 0 THEN BEGIN
     ;Sensitize the button
@@ -34,10 +34,11 @@ PRO S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
     STOP
   ENDIF ELSE IF nFiles EQ 1 THEN BEGIN
     ; Read in and parse the image
-    displayImg = READFITS(intensityFile, displayHead, /SILENT)
-    sz           = SIZE(displayImg, /DIMENSIONS) ;Grab the dimensions of the image array
-    nx           = sz[0]
-    ny           = sz[1]
+    intensityFile = intensityFile[0]
+    displayImg    = READFITS(intensityFile, displayHead, /SILENT)
+    sz            = SIZE(displayImg, /DIMENSIONS) ;Grab the dimensions of the image array
+    nx            = sz[0]
+    ny            = sz[1]
   ENDIF ELSE BEGIN
     PRINT, 'NO FILES FOUND.'
     STOP
@@ -50,7 +51,7 @@ PRO S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
     ;Extract astrometry from the display image header
     EXTAST, displayHead, dispAstr
     EXTAST, groupStruc.displayHeader, astr2MASS
-    
+
     ;Oplot the image boundaries and stars
     AD2XY, groupStruc.starInfo.RAJ2000, groupStruc.starInfo.DEJ2000, $    ;Convert star positions to pixel coordinates
       dispAstr, xStars, yStars
@@ -62,11 +63,6 @@ PRO S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
       xStars LT nx - 51 AND $
       yStars GT 50 AND $
       yStars LT ny - 51
-      
-    ;Display star candidates
-    greenColorInd = RGB_TO_DECOMPOSED([0,255,0])
-    OPLOT, (xStars-1), (yStars-1), $                                      ;Show the user where the selected stars are
-      PSYM = 6, COLOR = greenColorInd
       
     IF N_ELEMENTS(badStars) EQ 0 THEN BEGIN                               ;If there is no stored mask, build it and store it
       maskFile  = groupStruc.analysis_dir + 'S2_Ski_Jump_Fixes' + PATH_SEP() + 'Masking_files' + PATH_SEP() + 'mask2MASS.fits'
@@ -86,6 +82,16 @@ PRO S2_SELECT_PHOTOMETRY_MAGNITUDE_RANGE, event
       ;Mark all stars that should NOT be used for photometry
       badStars = (starsNearMask OR ~starsInRange)
       WIDGET_CONTROL, event.ID, SET_UVALUE = {badStars:badStars, displayHead:displayHead}
+    ENDIF
+    
+    ;Grab the indices of stars within good range of positions
+    goodInds = WHERE(~badStars, numGood)
+    IF numGood GT 0 THEN BEGIN
+      ;Show the user where the selected stars are
+      OPLOT, $
+        (xStars[goodInds]-1), $
+        (yStars[goodInds]-1), $
+        PSYM = 6, COLOR = RGB_TO_DECOMPOSED([0,255,0])
     ENDIF
     
   ENDIF
@@ -171,7 +177,6 @@ PRO S2_MAGNITUDE_RANGE, event;, stash
   ;
   ; Event handler for magnitude range slider
   ;
-  
   displayWID = WIDGET_INFO(event.top,FIND_BY_UNAME='IMAGE_DISPLAY_WINDOW');Grab the display window WID
   tlb_wid    = WIDGET_INFO(event.top,FIND_BY_UNAME='WID_BASE')        ;Grab the top-level-base WID
   wS2magRangeSlider = WIDGET_INFO(event.top, FIND_BY_UNAME='S2_MAG_RANGE')
@@ -204,10 +209,10 @@ PRO S2_MAGNITUDE_RANGE, event;, stash
   useStarInds = WHERE(groupStruc.photStarFlags, numUse, $             ;Find the stars in the selected magnitude range
     COMPLEMENT = noUseStarInds, NCOMPLEMENT = numNoUse)
     
-  EXTAST, displayHead, astr
+  EXTAST, displayHead, dispAstr
   AD2XY, groupStruc.starInfo.RAJ2000, groupStruc.starInfo.DEJ2000, $
-    astr, xStars, yStars
-    
+    dispAstr, xStars, yStars
+
   IF numUse GT 0 THEN BEGIN
     OPLOT, (xStars[useStarInds]-1), (yStars[useStarInds]-1), $        ;Show the user where the selected stars are
       PSYM = 6, COLOR = RGB_TO_DECOMPOSED([0,255,0])
@@ -248,10 +253,11 @@ PRO S2_MEASURE_PHOTOMETRY, event
     STOP
   ENDIF ELSE IF nFiles EQ 1 THEN BEGIN
     ; Read in and parse the image
-    intensityImg = READFITS(intensityFile, header, /SILENT)
-    sz           = SIZE(intensityImg, /DIMENSIONS) ;Grab the dimensions of the image array
-    nx           = sz[0]
-    ny           = sz[1]
+    intensityFile = intensityFile[0]
+    intensityImg  = READFITS(intensityFile, header, /SILENT)
+    sz            = SIZE(intensityImg, /DIMENSIONS) ;Grab the dimensions of the image array
+    nx            = sz[0]
+    ny            = sz[1]
   ENDIF ELSE IF nFile GT 1 THEN BEGIN
     PRINT, 'TOO MANY FILES FOUND.'
     STOP
@@ -930,7 +936,7 @@ PRO S2_CALIBRATE_PHOTOMETRY, event
     ;Report results to user
     PRINT_TEXT2, event, 'Best fit linear regression has'
     PRINT_TEXT2, event, STRING(alpha, s_alpha, FORMAT='("INTERCEPT = ", F6.3, " +/- ", F6.3)')
-    PRINT_TEXT2, event, STRING(beta,  s_beta,  FORMAT='("SLOPE     = ", F6.3, " +/- ", F6.3)'
+    PRINT_TEXT2, event, STRING(beta,  s_beta,  FORMAT='("SLOPE     = ", F6.3, " +/- ", F6.3)')
     
     ;Fill in the color of the galaxy where SNR > 10 in both bands
     galRegion = galRegion1 AND galRegion2
